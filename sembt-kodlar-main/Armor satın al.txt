@@ -1,0 +1,41 @@
+// Armor satın al (çoklu item, değişken uzunluk)
+// Paket: 21 01 11 15 03 00 [NPC_ID:4] [Count:1] [ItemBlocks...]
+// Her item bloğu: [ItemID:4] [InvSlot:1] [Adet:1] [00 00] [ShopSlot:1] = 9 byte
+inline void BuyArmor(const std::vector<std::tuple<DWORD, BYTE, BYTE>>& items) {
+    // items: (ItemID, InvSlot, ShopSlot) tuple listesi
+    if (items.empty()) return;
+
+    size_t itemCount = items.size();
+    size_t packetSize = 11 + (itemCount * 9);  // Header + item blokları
+    
+    std::vector<BYTE> packet(packetSize);
+    
+    // Header
+    packet[0] = 0x21;
+    packet[1] = 0x01;
+    packet[2] = 0x11;
+    packet[3] = 0x15;
+    packet[4] = 0x03;
+    packet[5] = 0x00;
+    *(DWORD*)&packet[6] = KO_NPC_ARMOR_SHOP;
+    packet[10] = (BYTE)itemCount;
+
+    // Item blokları
+    size_t offset = 11;
+    for (const auto& item : items) {
+        DWORD itemId = std::get<0>(item);
+        BYTE invSlot = std::get<1>(item);
+        BYTE shopSlot = std::get<2>(item);
+
+        *(DWORD*)&packet[offset] = itemId;      // ItemID (4 byte)
+        packet[offset + 4] = invSlot;           // Inventory Slot
+        packet[offset + 5] = 0x01;              // Adet (her zaman 1)
+        packet[offset + 6] = 0x00;              // Sabit
+        packet[offset + 7] = 0x00;              // Sabit
+        packet[offset + 8] = shopSlot;          // Shop Slot
+        
+        offset += 9;
+    }
+
+    Send(packet.data(), (int)packetSize);
+}

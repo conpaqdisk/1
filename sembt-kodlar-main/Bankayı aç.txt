@@ -1,0 +1,22 @@
+// Bankayı aç
+// 1. WIZ_NPC_EVENT: 20 01 [NPC_ID:4] FF FF FF FF
+// 2. WIZ_WAREHOUSE: 45 01 [NPC_ID:4]
+inline void OpenBank(DWORD npcId) {
+    // Paket 1: NPC Event
+    BYTE packet1[10] = { 0 };
+    packet1[0] = 0x20;  // WIZ_NPC_EVENT
+    packet1[1] = 0x01;  // Event type
+    *(DWORD*)&packet1[2] = npcId;
+    packet1[6] = 0xFF;
+    packet1[7] = 0xFF;
+    packet1[8] = 0xFF;
+    packet1[9] = 0xFF;
+    Send(packet1, sizeof(packet1));
+
+    // Paket 2: Warehouse aç
+    BYTE packet2[6] = { 0 };
+    packet2[0] = 0x45;  // WIZ_WAREHOUSE
+    packet2[1] = 0x01;  // Open
+    *(DWORD*)&packet2[2] = npcId;
+    Send(packet2, sizeof(packet2));
+}

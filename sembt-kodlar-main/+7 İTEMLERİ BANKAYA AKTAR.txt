@@ -1,0 +1,40 @@
+ // ========================================================================
+    // +7 İTEMLERİ BANKAYA AKTAR (DLL İÇİNDE TAM KONTROL)
+    // ========================================================================
+   
+    inline int TransferPlus7ToBank()
+    {
+        // Sabit 1. banka NPC ID kullan (61531)
+       
+        // 1. Envanterde +7 itemleri bul (slot numaralarını kaydet)
+        auto items = GetInventoryItems();
+        std::vector<ItemInfo> plus7Items;
+       
+        for (const auto& item : items)
+        {
+            if (item.upgradeLevel == 7)
+            {
+                plus7Items.push_back(item);
+            }
+        }
+       
+        if (plus7Items.empty())
+            return 0;  // +7 item yok
+       
+       
+        auto emptySlots = GetEmptyBankSlots();
+        if (emptySlots.empty())
+            return -1;  // Boş slot yok
+       
+        // 4. Her +7 item için transfer yap
+        int successCount = 0;
+        for (size_t i = 0; i < plus7Items.size() && i < emptySlots.size(); ++i)
+        {
+            const auto& item = plus7Items[i];
+            int bankSlot = emptySlots[i];
+           
+            Packet::SendToBank(KO_NPC_BANK_1, item.itemId, (BYTE)item.slot, bankSlot);
+            successCount++;
+            Sleep(50);
+        }
+		

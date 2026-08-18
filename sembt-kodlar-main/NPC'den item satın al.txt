@@ -1,0 +1,24 @@
+// NPC'den item satın al
+// Paket: 21 01 [30 E0 03 00] [NPC_ID:4] 01 [ITEM_ID:4] [SLOT:1] [ADET:2] [SAYFA:1] [SHOP_SLOT:1]
+inline void BuyItem(DWORD npcId, DWORD itemId, BYTE invSlot, WORD adet, BYTE shopPage, BYTE shopSlot) {
+    BYTE packet[20] = {
+        0x21, 0x01,                     // Opcode + SubOpcode
+        0x30, 0xE0, 0x03, 0x00,         // Sabit
+        0, 0, 0, 0,                     // NPC ID (6-9)
+        0x01,                           // Sabit (10)
+        0, 0, 0, 0,                     // Item ID (11-14)
+        0,                              // Inventory Slot (15)
+        0, 0,                           // Adet (16-17)
+        0,                              // Shop Sayfa No (18)
+        0                               // Shop Slot No (19)
+    };
+
+    *(DWORD*)&packet[6] = npcId;
+    *(DWORD*)&packet[11] = itemId;
+    packet[15] = invSlot;
+    *(WORD*)&packet[16] = adet;
+    packet[18] = shopPage;
+    packet[19] = shopSlot;
+
+    Send(packet, sizeof(packet));
+}

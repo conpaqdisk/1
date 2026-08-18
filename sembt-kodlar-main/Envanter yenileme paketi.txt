@@ -1,0 +1,6 @@
+// Envanter yenileme paketi
+// Format: 6A 02
+inline void RefreshBag() {
+    BYTE packet[2] = { 0x6A, 0x02 };
+    Send(packet, sizeof(packet));
+}

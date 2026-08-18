@@ -1,0 +1,32 @@
+// Upgrade paketi gönderme
+ // Format: 5B 02 01 [ANVIL:4] [ITEM_ID:4] [ITEM_SLOT:1] [SCROLL_ID:4] [SCROLL_SLOT:1] [GEMS:40]
+ inline void SendUpgrade(DWORD anvilId, DWORD itemId, BYTE itemSlot, DWORD scrollId, BYTE scrollSlot) {
+     BYTE packet[57] = { 0 };
+    
+     packet[0] = 0x5B;  // WIZ_ITEM_UPGRADE
+     packet[1] = 0x02;  // SubOpcode
+     packet[2] = 0x01;  // Sabit
+    
+     // Anvil ID (Little Endian)
+     *(DWORD*)&packet[3] = anvilId;
+    
+     // Item ID (Little Endian)
+     *(DWORD*)&packet[7] = itemId;
+    
+     // Item Slot
+     packet[11] = itemSlot;
+    
+     // Scroll ID (Little Endian)
+     *(DWORD*)&packet[12] = scrollId;
+    
+     // Scroll Slot
+     packet[16] = scrollSlot;
+    
+     // Gem Slots (8 x 5 bytes = 40 bytes, all 0x00 except FF separators)
+     for (int i = 0; i < 8; i++) {
+         packet[17 + (i * 5) + 4] = 0xFF;  // FF separator at end of each gem slot
+     }
+    
+     Send(packet, sizeof(packet));
+ }
+ 

@@ -1,0 +1,58 @@
+ // ============================================
+    // VIP BANKA FONKSİYONLARI (0x8B WIZ_VIP_STORAGE)
+    // ============================================
+
+    // VIP Banka Aç
+    // Paket: 8B 01 00 00 00 00
+    inline void OpenVipBank() {
+        BYTE packet[6] = {
+            0x8B, 0x01,     // WIZ_VIP_STORAGE + Open
+            0x00, 0x00, 0x00, 0x00
+        };
+        Send(packet, sizeof(packet));
+    }
+
+    // Envanterden VIP Bankaya item koy
+    // Paket: 8B 02 00 00 00 00 [ItemID:4] 00 [InvSlot:1] [VipSlot:1] [Count:1] 00
+    inline void SendToVipBank(DWORD itemId, BYTE invSlot, BYTE vipBankSlot, BYTE count = 1) {
+        BYTE packet[15] = {
+            0x8B, 0x02,     // WIZ_VIP_STORAGE + Deposit
+            0x00, 0x00, 0x00, 0x00,  // Sabit
+            0, 0, 0, 0,     // ItemID (6-9)
+            0x00,           // Sabit (10)
+            0,              // Inventory Slot (11)
+            0,              // VIP Slot (12)
+            0,              // Count (13)
+            0x00            // Sonlandırıcı (14)
+        };
+
+        *(DWORD*)&packet[6] = itemId;
+        packet[11] = invSlot;
+        packet[12] = vipBankSlot;
+        packet[13] = count;
+
+        Send(packet, sizeof(packet));
+    }
+
+    // VIP Bankadan Envantere item al
+    // Paket: 8B 03 00 00 00 00 [ItemID:4] 00 [VipSlot:1] [InvSlot:1] [Count:1] 00
+    inline void GetFromVipBank(DWORD itemId, BYTE vipBankSlot, BYTE invSlot, BYTE count = 1) {
+        BYTE packet[15] = {
+            0x8B, 0x03,     // WIZ_VIP_STORAGE + Withdraw
+            0x00, 0x00, 0x00, 0x00,  // Sabit
+            0, 0, 0, 0,     // ItemID (6-9)
+            0x00,           // Sabit (10)
+            0,              // VIP Slot (11)
+            0,              // Inventory Slot (12)
+            0,              // Count (13)
+            0x00            // Sonlandırıcı (14)
+        };
+
+        *(DWORD*)&packet[6] = itemId;
+        packet[11] = vipBankSlot;
+        packet[12] = invSlot;
+        packet[13] = count;
+
+        Send(packet, sizeof(packet));
+    }
+}

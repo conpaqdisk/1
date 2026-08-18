@@ -1,0 +1,50 @@
+ // ============================================
+  // BANKA TRANSFER FONKSİYONLARI
+  // ============================================
+
+  // Envanterden Bankaya item koy
+  // Paket: 45 02 [NPC_ID:4] [ItemID:4] 00 [InvSlot:1] [BankSlot:1] [Count:1] 00 00 00
+  inline void SendToBank(DWORD npcId, DWORD itemId, BYTE invSlot, int bankSlot, BYTE count = 1) {
+      BYTE packet[17] = {
+          0x45, 0x02,
+          0, 0, 0, 0,        // NPC ID (2-5)
+          0, 0, 0, 0,        // ItemID (6-9)
+          0x00,              // [10]: Boş
+          0,                 // [11]: Inventory Slot
+          0,                 // [12]: Bank Slot
+          0,                 // [13]: Count
+          0x00, 0x00, 0x00   // [14-16]: Sonlandırıcılar
+      };
+
+      *(DWORD*)&packet[2] = npcId;
+      *(DWORD*)&packet[6] = itemId;
+      packet[11] = invSlot;
+      packet[12] = (BYTE)(bankSlot & 0xFF);
+      packet[13] = count;
+
+      Send(packet, sizeof(packet));
+  }
+
+  // Bankadan Envantere item al
+  // Paket: 45 03 [NPC_ID:4] [ItemID:4] [BankPage:1] [BankSlot:1] [InvSlot:1] [Count:1] 00 00 00
+  inline void GetFromBank(DWORD npcId, DWORD itemId, int bankSlot, BYTE invSlot, BYTE count = 1) {
+      int bankPage = bankSlot / 24;
+      int pageSlot = bankSlot % 24;
+
+      BYTE packet[17] = {
+          0x45, 0x03,
+          0, 0, 0, 0,        // NPC ID (2-5)
+          0, 0, 0, 0,        // ItemID (6-9)
+          (BYTE)bankPage,    // [10]: Bank Page (0-7)
+          (BYTE)pageSlot,    // [11]: Bank Slot (0-23)
+          invSlot,           // [12]: Inventory Slot
+          count,             // [13]: Adet
+          0x00, 0x00, 0x00   // [14-16]: Sonlandırıcılar
+      };
+
+      *(DWORD*)&packet[2] = npcId;
+      *(DWORD*)&packet[6] = itemId;
+
+      Send(packet, sizeof(packet));
+  }
+  
