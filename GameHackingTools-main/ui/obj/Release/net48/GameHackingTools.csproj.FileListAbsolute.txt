@@ -1,0 +1,10 @@
+C:\Users\Ayaz-Rüzgar\.gemini\antigravity\BOT\GameHackingTools\ui\bin\Release\net48\GameHackingTools.exe.config
+C:\Users\Ayaz-Rüzgar\.gemini\antigravity\BOT\GameHackingTools\ui\bin\Release\net48\GameHackingTools.exe
+C:\Users\Ayaz-Rüzgar\.gemini\antigravity\BOT\GameHackingTools\ui\bin\Release\net48\GameHackingTools.pdb
+C:\Users\Ayaz-Rüzgar\.gemini\antigravity\BOT\GameHackingTools\ui\obj\Release\net48\GameHackingTools.csproj.AssemblyReference.cache
+C:\Users\Ayaz-Rüzgar\.gemini\antigravity\BOT\GameHackingTools\ui\obj\Release\net48\GameHackingTools.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Ayaz-Rüzgar\.gemini\antigravity\BOT\GameHackingTools\ui\obj\Release\net48\GameHackingTools.AssemblyInfoInputs.cache
+C:\Users\Ayaz-Rüzgar\.gemini\antigravity\BOT\GameHackingTools\ui\obj\Release\net48\GameHackingTools.AssemblyInfo.cs
+C:\Users\Ayaz-Rüzgar\.gemini\antigravity\BOT\GameHackingTools\ui\obj\Release\net48\GameHackingTools.csproj.CoreCompileInputs.cache
+C:\Users\Ayaz-Rüzgar\.gemini\antigravity\BOT\GameHackingTools\ui\obj\Release\net48\GameHackingTools.exe
+C:\Users\Ayaz-Rüzgar\.gemini\antigravity\BOT\GameHackingTools\ui\obj\Release\net48\GameHackingTools.pdb
