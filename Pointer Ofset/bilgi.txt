@@ -1,0 +1,310 @@
+inject
+manual map
+external / internal
+hook
+driver / kernel
+ring0 / ring3
+BYOVD
+VBS / HVCI
+Ama çoğu zaman herkes farklı şeyi kast ediyor. Bu konuyu tek parça halinde, gerçekçi ve sade şekilde anlatıyorum.
+
+Önce büyük resmi anlayalım
+
+Bir programın başka bir programa etki etmesinin 3 temel yolu var:
+Dışarıdan bakarsın
+Dışarıdan değiştirirsin
+İçeri girersin
+1) Dışarıdan bakmak (Read)
+Başka bir process'in memory'sini okursun.
+Yani:
+sadece izliyorsun
+veri çekiyorsun
+En basit senaryo bu. ReadProcessMemory ile yaparsın.
+
+2) Dışarıdan değiştirmek (Write)
+Memory'ye müdahale edersin.
+Yani:
+dışarıdasın
+ama içerdeki değeri değiştiriyorsun
+WriteProcessMemory klasik örneği.
+
+3) İçeri girmek (Inject)
+Kodunu hedef process'in içine sokarsın.
+Bu noktadan sonra:
+artık içeride çalışırsın
+hedefin adres uzayına eşit erişimin olur
+daha fazla kontrolün olur
+Inject dediğimiz şey aslında ne?
+
+Inject = içeri kod sokmak.
+
+Bunun farklı yolları var:
+
+DLL Load (klasik yöntem)
+LoadLibrary ile hedef process'e DLL yüklersin. Basit, ama iz bırakır:
+PEB'deki modül listesine eklenir
+Anti-cheat tarafından kolayca tespit edilir
+Dosya diskte olmak zorunda
+Manual Map
+LoadLibrary kullanmak yerine DLL'i kendin yüklersin:
+PE header'ı kendin parse edersin
+Section'ları allocate edip yerleştirirsin
+Relocation'ları (base adres farkı) elle çözersin
+IAT (Import Address Table) doldurursun
+TLS callback'leri tetiklersin
+Neden bu zahmet?
+Çünkü modül PEB listesine eklenmez. Yani anti-cheat "yüklü DLL listesini" tararken seni göremez.
+
+Reflective / Shellcode Injection
+Dosyasız senaryo. Kod doğrudan memory'de oluşturulur, diskte DLL yok. Payload'u kendi kendini yükleyecek şekilde yazarsın.
+
+Ortak nokta:
+Kod artık hedef process'in içinde çalışıyor.
+
+External vs Internal
+
+External → dışarıdan okur/yazar. Kendi process'inden hedefe Read/WriteProcessMemory atarsın.
+Internal → içeri girer (inject). Hedefin adres uzayında çalışırsın, pointer'lara doğrudan erişirsin.
+
+Farkı basitçe:
+External: daha az tespit riski (kendi process'inde çalışıyorsun) ama daha yavaş, her okuma syscall gerektirir
+Internal: çok daha hızlı ve güçlü, ama içerideysen anti-cheat seni oradan avlayabilir
+Hook nedir?
+
+Hook = fonksiyon akışını değiştirmek.
+
+Normalde:
+Fonksiyon A çalışacak → A çalışır.
+
+Hook ile:
+Fonksiyon A çağrıldı → önce benim kodum çalışır → istersem A'ya devam ederim, istersem başka bir değer döndürürüm.
+
+Hook türleri
+
+Inline Hook (Detour)
+Fonksiyonun ilk birkaç byte'ını jmp ile kendi kodunla değiştirirsin. En yaygın yöntem. MinHook, Detours, Polyhook bunu yapar.
+
+IAT Hook
+Import Address Table'daki fonksiyon pointer'ını değiştirirsin. Örneğin MessageBoxA'nın adresini kendi fonksiyonuna çevirirsin. Fonksiyonun kendisine dokunmazsın, sadece "nereye gittiğini" değiştirirsin.
+
+VTable Hook
+C++ sanal fonksiyon tablosundaki pointer'ı değiştirirsin. DirectX/OpenGL hook'larında klasik (Present, EndScene hook'ları).
+
+VEH Hook (Vectored Exception Handler)
+Fonksiyonun başına bozuk instruction koyarsın, exception fırlar, exception handler'ın içinde işi yaparsın. Tespit edilmesi zordur çünkü ortada jmp yoktur.
+
+Hook internal senaryoda daha güçlüdür çünkü aynı adres uzayındasın.
+
+Şimdi işin yetki kısmı: Ring olayı
+
+Ring3 (User Mode)
+Normal programlar, oyunlar, senin yazdığın tool'lar
+Ring0 (Kernel Mode)
+Driver'lar, işletim sistemi çekirdeği
+Asıl fark: asimetrik görünürlük
+
+Sadece "yetki" meselesi değil, görünürlük meselesi:
+Ring3 → Ring3: İki user-mode process birbirini eşit yetkiyle görür. Cheat de oyun da aynı seviyede.
+Ring0 → Ring3: Kernel driver tüm user-mode process'leri yukarıdan görür. Tersi mümkün değil.
+
+İşte anti-cheat'lerin kernel'e çıkma sebebi bu: aynı seviyede olmak istemiyorlar.
+
+Anti-cheat'ler neden kernel kullanıyor?
+User-mode'da çalışan bir anti-cheat, yine user-mode'daki bir cheat tarafından manipüle edilebilir
+Aynı seviyede kandırmak kolaydır
+Kernel'den user-mode'a bakmak asimetrik avantaj
+Örnekler:
+EasyAntiCheat (EAC) → kernel driver
+BattlEye → kernel driver
+Vanguard (Riot) → boot-time kernel driver, sistem açılışından itibaren çalışıyor
+Faceit AC → kernel seviyesi
+
+Kernel'e çıkmak: Eskiden vs Şimdi
+
+Eskiden işler basitti:
+Driver yaz (.sys)
+Test signing aç veya kendi imzanı at
+sc create ile yükle, sc start ile başlat
+Bitti, ring0'dasın
+Şimdi bu yol kapalı. Sebepleri:
+DSE (Driver Signature Enforcement): İmzasız driver yüklenmiyor
+WHQL zorunluluğu: Microsoft'un onayladığı EV sertifikası olmadan imza yetmiyor
+PatchGuard (KPP): Kernel yapılarını değiştirirsen sistem BSOD atıyor
+HVCI açıksa işler daha da sıkı (aşağıda anlatacağım)
+O zaman cheat geliştiricileri nasıl kernel'e çıkıyor? İşte burada BYOVD devreye giriyor.
+
+BYOVD nedir? (Bring Your Own Vulnerable Driver)
+
+Temel fikir:
+
+Microsoft imzalı, ama içinde güvenlik açığı olan bir driver'ı bulup, onu kullanarak ring0'a çıkmak.
+
+Kendi imzasız driver'ını yükleyemiyorsan, başkasının imzalı-ama-açıklı driver'ını yüklersin. Windows "bu driver imzalı" deyip geçer. Sen de driver'ın açığını sömürüp içinden istediğini yaparsın.
+
+Nasıl çalışıyor adım adım?
+Açıklı driver bul. Genelde eski motherboard utility'leri, overclock araçları, RGB yazılımları, antivirüs driver'ları olur. Bunlar genelde IOCTL ile kernel memory'ye keyfi read/write veriyorlar.
+Driver'ı sisteme yükle. İmzalı olduğu için DSE şikayet etmez. CreateService + StartService ile yüklersin.
+Driver'a IOCTL gönder. DeviceIoControl ile driver'la konuşursun. Açıklı olan IOCTL handler'ı, sana istediğin kernel adresine read/write yapma imkanı verir.
+Artık ring0'da ne istersen yap:
+Kernel memory oku/yaz
+Kendi imzasız driver'ını manuel map'le
+Anti-cheat'in callback'lerini bul ve devre dışı bırak
+Process koruma flag'lerini temizle (EPROCESS.Protection)
+
+Meşhur örnekler
+capcom.sys → Capcom'un oyun anti-cheat driver'ı. İçinde bir IOCTL vardı ki, user-mode'dan gönderdiğin shellcode'u ring0'da çalıştırıyordu. Tam anlamıyla "hediye." Yıllarca kullanıldı.
+RTCore64.sys (MSI Afterburner) → MSR read/write veriyordu. Ransomware grupları bile kullandı.
+gdrv.sys (Gigabyte) → arbitrary kernel R/W, ezber bozan klasik.
+iqvw64e.sys (Intel) → kernel R/W, çok kullanıldı.
+Dell dbutil_2_3.sys, AsrDrv101.sys (ASRock), WinRing0.sys → hepsi aynı hikâye.
+Microsoft'un cevabı: Vulnerable Driver Blocklist
+
+Microsoft artık bilinen açıklı driver'ları blocklist'e ekliyor. HVCI açıksa bu liste zorunlu, HVCI kapalıysa Windows 11 22H2+ ile default olarak devreye giriyor.
+
+Bu liste:
+C:\Windows\System32\CodeIntegrity\DriverSiPolicy.p7b içinde
+Windows Update ile güncelleniyor
+Listedeki driver'ı yüklemek istersen Windows reddediyor
+Ama bu yarış bitmedi. Her ay yeni açıklı driver bulunuyor, blocklist'e eklenmeden önce bir süre pencere oluyor. "Fresh BYOVD" piyasası hâlâ canlı.
+
+VBS ve HVCI: Hypervisor seviyesinde denetim
+
+Windows dedi ki: "Kernel bile tek başına güvenli değil, onu da ben izlerim."
+
+Hiyerarşi şu hale geldi:
+
+Kod:
+User Mode (Ring3)
+    ↓
+Kernel Mode (Ring0)
+    ↓
+Hypervisor / VBS  ← kernel'i bile denetler
+VBS (Virtualization Based Security) ne yapıyor?
+
+Hyper-V'yi kullanarak izole bir güvenlik ortamı oluşturuyor. Kritik şeyler (credentials, code integrity kararları) normal kernel'de değil, bu izole ortamda (VTL1 / Secure Kernel) tutuluyor. Normal kernel (VTL0) onlara erişemiyor.
+
+HVCI (Hypervisor-protected Code Integrity) ne yapıyor?
+
+Kernel'de çalışan kodun imzasını hypervisor seviyesinde doğruluyor. Somut etkileri:
+
+W^X zorlanıyor: Kernel memory aynı anda hem writable hem executable olamaz. Klasik "allocate + shellcode yaz + execute" pattern'i ölüyor.
+İmzasız kod kernel'de çalışamaz — sen ring0'a çıksan bile.
+Sayfa tabloları hypervisor tarafından korunuyor, kendin patch edemiyorsun.
+
+Yani BYOVD ile ring0'a çıksan bile, HVCI açıksa:
+Kernel'e keyfi shellcode yazıp çalıştıramazsın
+Manual map ettiğin driver'ın executable pages'ını hypervisor reddeder
+MmGetSystemRoutineAddress gibi trick'lerle bypass mümkün değil
+
+VBS/HVCI manipülasyon yöntemleri
+
+Burada net olalım: HVCI açık ve düzgün yapılandırılmış bir sistemde temiz bir bypass çok zor. Yine de kullanılan yaklaşımlar şunlar:
+
+1) HVCI'yi hiç açtırmamak / kapatmak
+
+En yaygın "çözüm" aslında bypass değil, kaçınma:
+Hedef sistemde HVCI kapalıysa (ki çoğu gamer sisteminde kapalı, çünkü performansı etkiliyor) iş zaten kolay
+Bazı cheat'ler HVCI açıksa çalışmayı reddediyor, kullanıcıya "Core Isolation'ı kapat" diyor
+BIOS'tan VT-x/AMD-V kapatıldığında VBS de çalışmaz
+
+2) Data-only saldırılar
+
+HVCI kod enjeksiyonunu engelliyor, ama veri manipülasyonunu engellemiyor. Yani:
+Yeni shellcode çalıştıramazsın
+Ama mevcut kernel yapılarındaki veriyi değiştirebilirsin
+Örnekler:
+EPROCESS yapısındaki Token field'ını SYSTEM token ile swap etmek (privilege escalation)
+PsActiveProcessHead listesinden process unlink etmek (DKOM — Direct Kernel Object Manipulation)
+Anti-cheat'in callback array'indeki pointer'ları NULL'lamak
+EPROCESS.Protection byte'ını sıfırlamak (PPL bypass)
+
+Bu saldırılar HVCI altında da çalışıyor çünkü kod değil, veri değiştiriyorsun. BYOVD ile arbitrary kernel R/W aldığın an bunların hepsi açık.
+
+3) Page table manipulation (zorlaştı ama bitmedi)
+
+Eskiden kernel page table'larını değiştirip "bu sayfa executable" diyebiliyordun. HVCI bunu hypervisor seviyesinde koruyor — SLAT (Second Level Address Translation) tablolarını VTL0 değiştiremiyor. Ama araştırmacılar ara sıra hypervisor'ın kendisindeki açıkları buluyor; bu tarz CVE'ler nadir ama var.
+
+4) Secure Kernel / VTL1 saldırıları
+
+En derin seviye: hypervisor ya da Secure Kernel'in kendisinde açık bulmak. Bunlar genelde Microsoft'un bug bounty'sinde yüksek ödüllü CVE'ler olur. Pratikte cheat geliştiricisinin uğraşacağı bir alan değil — daha çok APT gruplarının ilgi alanı.
+
+5) Firmware / UEFI seviyesi
+
+Hypervisor'dan daha aşağıda — UEFI bootkit, SMM (System Management Mode) rootkit gibi teknikler. Hypervisor bile çalışmadan önce kod çalıştırırsın. Çok ileri seviye, bu işin "devlet destekli aktör" ligi.
+
+Özet: HVCI açıksa kural
+Yeni kod çalıştıramıyorsun → data-only düşün
+Manual map edip imzasız driver yüklemek eski senaryo, artık iş görmüyor
+BYOVD hâlâ değerli, ama artık hedef "kod enjekte etmek" değil "veriyi manipüle etmek"
+
+Tüm olayı tek tabloda toplayalım
+Kod:
+External Read     → dışarıdan veri okuma
+External Write    → dışarıdan veri değiştirme
+Inject (Internal) → içeri girip kod çalıştırma
+Hook              → akışı değiştirme (Inline/IAT/VTable/VEH)
+
+Ring3             → normal uygulama seviyesi
+Ring0             → kernel / driver seviyesi
+BYOVD             → imzalı+açıklı driver üzerinden Ring0'a çıkma
+VBS / HVCI        → hypervisor seviyesinde kernel denetimi
+Data-only attack  → HVCI altında kod yerine veri manipülasyonu
+En net özet
+
+Bir sistemi anlamak için şu 3 soruyu sor:
+
+İçerde miyim dışarda mı? (external / internal)
+Ne yapıyorum? (read / write / hook / inject)
+Hangi seviyedeyim? (ring3 / ring0 / vbs üstü)
+
+Ve modern sistemde 4. soru:
+
+HVCI açık mı? Açıksa kod değil veri manipülasyonu düşün.
+
+Bu dörtlü oturursa:
+→ kafan karışmaz
+→ her terimi yerine koyarsın
+→ forumda kimin ne dediğini çözersin
+
+Çoğu kişi sadece "DLL inject" biliyor. Ama gerçek olay:
+
+External vs Internal
+Ne yaptığın (read/write/hook)
+Hangi seviyede olduğun (ring/vbs)
+Hedefin neyi koruduğu (kod mu, veri mi)
+
+
+1. Bilgisayarında hangi programlar açık — tüm çalışan program listeni tarıyor / (process enumeration: CreateToolhelp32Snapshot).
+
+2. Açık pencerelerin başlıklarını okuyor / (EnumWindows / GetWindowText)
+
+3. Oyunun / Windows'un modüllerine biri dokunmuş mu, yamalamış mı / (module tampering protection).
+
+4. Windows'un temel dosyalarının (ntdll, kernel32) temiz bir kopyasını tutuyor, biri araya girmiş (API hook) mi diye kıyaslıyor.
+
+5. Oyunu bir "debugger" ile açan ya da donanım breakpoint'i (Dr0-7) koyan var mı diye bakıyor.
+
+6. Oyunun fonksiyonlarını native bir çağrı yolundan tetikleyen var mı ? (ROP / call-stack bütünlüğü).
+
+7. Oyuna dışarıdan imzasız/yabancı kod sokulmuş mu diye kontrol ediyor.
+
+8. Oyunun kendi içinden başka bir program başlatılıyor mu diye kontol ediyor. (childprocess)
+
+9. Başka bir program oyunun hafızasını okumaya çalışıyor mu diye kontrol ediyor. (ReadProcessMemory).
+
+10. xhunter1.sys ile libcurl aracılığı ile kendi sunucusuna bilgisayarınızdan aldığı infoları gönderiyor.
+
+11- Bilgisayarınızda son çalıştırdığınız programların listesine bakıyor.12- İçerisindeki Lua Scprit motoru sayesinde 3rd tools tespitinde kullandıkları yöntemleri oyuna herhangi bir güncelleme vermeden diledikleri an kendileri güncelleyebiliyorlar.
+
+13- https://github.com/xmkg/ko-table-editor incele ve bizim sisteme dahil et.
+
+14- https://github.com/AsynctaskCoffee/YOLO-Knight-Online-autoloot-model incele sisteme dahil et
+
+15- https://github.com/RolePlayingAuto/AutoXpSquire incele sisteme dahil et
+
+16- R atak = Paket("080101" + MobID() + "FF000000") sistemde güncel kod varsa kontrol ederek sisteme dahil et.
+
+
+
+
+

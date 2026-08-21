@@ -1,0 +1,50 @@
+Ortak Özellikler
+El Düşmeme
+Skill kullanımın darbe yediğinde yarıda kesilmez; "Failed" almazsın.
+
+Kitlenmeme
+Kitlendiğinde (stun/freeze) skill atmaya devam edersin. Kitliyken yerinde dur — yürürsen ışınlanma yaşayabilirsin.
+
+Rakipleri Uzaktan Gör ayarlanabilir
+Oyuncu isimlerini çok daha uzaktan görürsün. Mod seçilebilir: herkes ya da sadece karşı ırk.
+
+Pot Cd Kısaltma
+İksirlerin bekleme süresini düşürür; daha sık basabilirsin.
+
+Kör Yememe
+Kör eden skillerden etkilenmezsin; ekran kararması ve görüş kaybı anında kalkar.
+
+Sınırsız Lup
+Stealth/Hide atan rakipleri Lupine harcamadan, her haritada silik siluet olarak gösterir.
+
+Otomatik Restore Silme
+Üstüne atılan Past Recovery (HoT) buff'ı atılır atılmaz otomatik silinir.
+
+Spesifik Özellikler
+Alan Skilleri Max Range ayarlanabilir
+Alan skillerin maksimum menzilin dışına taşmaz; "too far" yüzünden boşa gitmez.
+
+Undying Set Değiştirici ayarlanabilir
+Undying (ölümsüzlük) buff'ın varken atak setine, bittiğinde HP setine otomatik geçer.
+
+Otomatik 1'leme (Başkan)
+Parti başkanıyken bir hedef seçtiğin an otomatik 1'ler; saldırmana bile gerek kalmaz.
+
+1'liyi Hedef Al ayarlanabilir
+Parti başkanı birini 1'lediğinde o hedefi otomatik seçersin — uzaktan bile.
+
+Başkanın Vurduğunu Hedef Al ayarlanabilir
+Başkan kime saldırırsa otomatik aynı hedefe geçersin; 1'leme beklemeye gerek yok.
+
+Oyun Ayarları
+FPS Limit Kaldırma ayarlanabilir
+120 FPS iç sınırını kaldırır. Hedef FPS'i kendin belirlersin; varsayılan monitör tazeleme hızın.
+
+Obje Kapat
+Ağaç, kaya ve yapı gibi dünya objelerini gizler; görüşün tamamen açılır. Zemin, gökyüzü ve çarpışma aynen kalır.
+
+Render Arttırma ayarlanabilir
+Menzile giren oyuncu ve objeler çok daha hızlı yüklenir; kare kare belirme (pop-in) azalır.
+
+Camera Zoom Limiti Kaldırma
+Kameranın uzaklaşma sınırını kaldırır; savaş alanını çok daha geniş görürsün.

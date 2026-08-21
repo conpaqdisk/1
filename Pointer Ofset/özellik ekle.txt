@@ -1,0 +1,1047 @@
+1- oto party
+
+#define KO_PTR_MSGBOX_MGR   0x011158EC   
+#define KO_VT_BUTTON        0x010095E0
+#define KO_OFF_AKTIFKUTU    0x28         
+#define KO_OFF_CONFIRM      0x124
+#define KO_OFF_CANCEL       0x128
+#define KO_OFF_BLOCK        0x148
+#define KO_OFF_UIPARENT     0xAC         
+#define KO_VT_UICLICK       0x84
+
+#include <windows.h>
+#include <cstdint>
+#include <cstring>
+#include <type_traits>
+
+using Address = uintptr_t;
+
+static bool IsReadable(Address address, size_t size = sizeof(uint32_t))
+{
+    if (address + size < address)
+        return false;
+
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (VirtualQuery(reinterpret_cast<LPCVOID>(address), &mbi, sizeof(mbi)) != sizeof(mbi))
+        return false;
+
+    if (mbi.State != MEM_COMMIT)
+        return false;
+
+    if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))
+        return false;
+
+    Address regionBase = reinterpret_cast<Address>(mbi.BaseAddress);
+    Address regionEnd  = regionBase + mbi.RegionSize;
+
+    return address >= regionBase && (address + size) <= regionEnd;
+}
+
+template <typename T>
+static T Read(Address address, T fallback = T{})
+{
+    static_assert(std::is_trivially_copyable<T>::value, "T trivially copyable olmalı");
+
+    if (!IsReadable(address, sizeof(T)))
+        return fallback;
+
+    T value{};
+    __try
+    {
+        std::memcpy(&value, reinterpret_cast<const void*>(address), sizeof(T));
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return fallback;
+    }
+    return value;
+}
+
+static bool IsExecutableAddress(Address address)
+{
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (VirtualQuery(reinterpret_cast<LPCVOID>(address), &mbi, sizeof(mbi)) != sizeof(mbi))
+        return false;
+
+    if (mbi.State != MEM_COMMIT)
+        return false;
+
+    if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))
+        return false;
+
+    const DWORD executableFlags =
+        PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+
+    return (mbi.Protect & executableFlags) != 0;
+}
+
+#if defined(_M_IX86)
+using UIClickFunction = void (__thiscall *)(Address self, uint32_t button, uint32_t flag);
+#else
+using UIClickFunction = void (*)(Address self, uint32_t button, uint32_t flag);
+#endif
+
+static Address GetMessageBox()
+{
+    Address manager = Read<Address>(KO_PTR_MSGBOX_MGR);
+    if (!manager)
+        return 0;
+
+    return Read<Address>(manager + KO_OFF_AKTIFKUTU);
+}
+
+static bool ClickButton(Address button)
+{
+    Address parent = Read<Address>(button + KO_OFF_UIPARENT);
+    if (!parent)
+        return false;
+
+    Address vtable = Read<Address>(parent);
+    if (!vtable)
+        return false;
+
+    Address click = Read<Address>(vtable + KO_VT_UICLICK);
+    if (!click || !IsExecutableAddress(click))
+        return false;
+  
+
+    __try
+    {
+        UIClickFunction fn = reinterpret_cast<UIClickFunction>(click);
+        fn(parent, button, 1);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static bool PressButtonAt(Address buttonOffset)
+{
+    Address box = GetMessageBox();
+    if (!box)
+        return false;
+
+    Address button = Read<Address>(box + buttonOffset);
+    if (!button)
+        return false;
+
+    if (Read<Address>(button) != KO_VT_BUTTON)
+        return false;
+
+    return ClickButton(button);
+}
+
+static bool PressConfirm() { return PressButtonAt(KO_OFF_CONFIRM); }
+static bool PressCancel()  { return PressButtonAt(KO_OFF_CANCEL);  }
+static bool PressBlock()   { return PressButtonAt(KO_OFF_BLOCK);   }
+
+
+oto party burada bitiyor aşşadakiler farklı kodlar.
+
+2- genel özellik bilgileri
+
+1. 🏛 Oyun Belleğinin Yapısı: Pointer ve Offset Mantığı
+Bir oyunun belleğinde (RAM) veriler rastgele dağınık değildir. Belirli bir düzen içinde, sabit bir "ana yapı" (genellikle struct veya class) üzerinden erişilebilirler. Knight Online'da karakterle ilgili tüm veriler (koordinatlar, can, mana, seviye, hareket durumu vb.) Karakter Yapısı (Character Structure) adı verilen bir bellek bölgesinde tutulur.
+
+Pointer (İşaretçi): Bu yapının başlangıç adresini gösteren sabit bir referans noktasıdır. Örneğin, KO_PTR_CHR adlı pointer, karakter yapısının başladığı adresi tutar. Ancak bu adres, oyunun her açılışında (dynamic allocation nedeniyle) değişebilir . Bu yüzden asla sabit bir adres kullanılmaz; her seferinde pointer okunarak doğru adres bulunur.
+Offset (Kayma Miktarı): Pointer'ın gösterdiği adresten itibaren, karakter yapısı içindeki belirli bir veriye (örneğin, hedef X koordinatı) ulaşmak için kaç byte ilerlenmesi gerektiğini belirten sabit sayıdır. Bu sayılar (KO_OFF_GoX, KO_OFF_MOVE gibi) oyun sürümü değişmedikçe genellikle aynı kalır .
+Süreç: Bir veriye yazmak/okumak için önce KO_PTR_CHR adresini okur, sonra bu adrese ilgili offset'i ekleyerek verinin tam adresini (Dynamic Address) hesaplarsın. İşte verdiğin örnekteki Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_GoX") kodu tam olarak bunu yapar .
+2. 🚶‍♂️ Adım Adım Memory ile Yürüme İşlemi
+Verdiğin kod parçasını, arka planda gerçekleşen olaylarla birlikte detaylandıralım.
+
+Adım 1: Hareket Tipini Belirleme (MOVEType)
+
+cpp
+Write4Byte(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_MOVEType"), 2);
+Ne Yapar? Karakterin hareket tipini 2 (koşma) olarak ayarlar.
+Detayı: Bu, oyunun hareket motoruna "Yapılacak hareket bir koşma hareketidir" sinyalini verir. Eğer bu değer 1 ise yürüme, 0 ise durma gibi anlamlara gelebilir. Bu değer, hareketin hızını ve animasyonunu etkiler.
+Adım 2: Hedef Koordinatları Belirleme (GoX, GoY)
+
+cpp
+WriteFloat(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_GoX"), GoX);
+WriteFloat(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_GoY"), GoY);
+Ne Yapar? Karakterin gitmesini istediğin hedefin X ve Y koordinatlarını float (ondalıklı sayı) formatında bellek adreslerine yazar.
+Detayı: Bu değerler, oyunun "hedef noktası (waypoint)" olarak kabul ettiği değerlerdir. Koordinatların doğru ve hassas olması çok önemlidir. Aksi takdirde karakter hedefi bulamaz veya sapma yaşar.
+Adım 3: Hareketi Başlatma (MOVE) - En Kritik Adım
+
+cpp
+Write4Byte(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_MOVE"), 1);
+Ne Yapar? Hareket mekanizmasını başlatan tetikleyiciyi (1) yazar.
+Detayı: Bu adım, paket göndermedeki 0x06 paketini göndermekten çok daha güçlüdür. Bu bayrak 1 olarak ayarlandığında, oyunun kendi iç döngüsü (game loop) bu değişikliği algılar ve aşağıdaki süreci otomatik olarak başlatır:
+MOVEType, GoX ve GoY değerlerini okur.
+Karakterin mevcut pozisyonu ile hedef arasında bir yol (path) hesaplar (engelleri aşmak için pathfinding yapar).
+Hesaplanan bu yol üzerindeki adımları (step'leri) ve yön bilgisini (heading) kendi iç buffer'ında oluşturur.
+Her oyun tick'inde (genellikle saniyede 10-20 kez), buffer'daki bir sonraki adım koordinatını alarak, sunucuya gitmesi gereken doğal hareket paketlerini (0x06 ve benzeri) otomatik olarak oluşturur ve gönderir .
+Karakter hedefe ulaştığında veya yeni bir komut verilene kadar bu işlem devam eder.
+Bu sayede, paket gönderme yönteminde yaşadığın "küçük adım atma", "DC olma" veya "zip" hareketi gibi sorunlar yaşanmaz. Çünkü tüm karmaşık hareket mantığını sen yönetmeye çalışmazsın, oyunun kendi sağlam mekanizmasına emanet edersin.
+
+3. 💡 Neden Bu Yöntem Daha Avantajlı?
+Doğallık: Karakter, tıpkı bir oyuncu tarafından fare ile tıklanmış gibi doğal ve akıcı hareket eder. Yürüme, koşma ve durma animasyonları sorunsuz çalışır.
+Kararlılık: Oyunun kendi hız sınırlamaları ve anti-cheat mekanizmaları (varsa) bu yöntemle daha uyumlu çalışır. Anormal paket göndermekten kaynaklanan DC'ler büyük ölçüde ortadan kalkar.
+Kolaylık: Paket yapısını (0x06'nın yanındaki 1C 00, 2D 00 gibi anlam bilinmeyen byte'ları) çözmekle uğraşmazsın.
+4. ⚠ Dikkat Edilmesi Gereken Hayati Noktalar
+Güncel Offset ve Pointer'ların Bulunması: Bu yöntemin en büyük zorluğu, doğru adresleri bulmaktır. Oyun güncellendikçe veya farklı sunucularda (USKO, PVP Serverlar) pointer ve offset değerleri değişir . Bu değerleri bulmak için:
+Cheat Engine: Bellek taraması yaparak değerlerin adreslerini bulabilirsin.
+AOB (Array of Bytes) Taraması: Belli bir kod kalıbını (örneğin, hareket fonksiyonunun başlangıç byte'ları) bularak pointer'ları dinamik olarak tespit eden yöntemler kullanabilirsin .
+Topluluk Paylaşımları: ko4life.net, elfdaily.com gibi forumlarda güncel offset paylaşımlarını takip edebilirsin . Ayrıca, açık kaynaklı projeler (örneğin OpenKO) bu değerleri anlamak için iyi bir referans olabilir .
+Koordinatların Doğruluğu: Yazdığın GoX ve GoY değerlerinin oyunun kullandığı koordinat sistemiyle uyumlu olması şarttır. Genellikle bu değerler oyun içi harita koordinatlarıdır.
+Zamanlama (Timing): KO_OFF_MOVE'a yazdıktan sonra, karakterin hedefe ulaşıp ulaşmadığını kontrol etmek için döngüye girmen gerekir. Aksi takdirde karakter hedefe vardığı halde "hareket et" komudu aktif kalabilir.
+Senkronizasyon (Desync): Bellekte yazdığın hedef koordinat ile oyunun sunucudan gelen gerçek pozisyon verisi arasında fark oluşabilir . Bu nedenle, karakterin anlık pozisyonunu da bellekten okuyarak (ReadFloat(KO_PTR_CHR + KO_OFF_X)) hedefe yaklaşıp yaklaşmadığını takip etmen iyi olur.
+5. 🚀 İleri Seviye İpuçları
+Bu yöntemi, sadece yürüme için değil, bir koordinata gidip otomatik eşya toplama (warehouse bot), belirli bir noktada bekleme veya görev (quest) yapma gibi daha karmaşık bot davranışlarının temeli olarak kullanabilirsin .
+Eğer oyunun fonksiyonlarına doğrudan müdahale edebiliyorsan (hook), hareket fonksiyonunu çağırmak için WriteMemory yerine, ilgili fonksiyonun adresine (örneğin 0x0040F1A0 gibi) bir CALL işlemi yapmayı da deneyebilirsin. Bu, daha "temiz" bir yöntem olabilir.
+
+
+
+O 2620 client üzerinde internal bir automation/bot test ortamı kuruyorum. Şu an send zinciri, combat intent ve move intent tarafı çalışıyor ama movement backend kısmında
+takıldım. Durumu mümkün olduğunca net özetleyeyim:
+
+Şu an doğruladığım şeyler:
+
+- Ana send wrapper olarak sub_704070 kullanıyorum.
+- Bu call zinciri üzerinden packet gerçekten çıkıyor.
+- Attack tarafında packet server’a ulaşıyor; hedef üzerinde etki gördüm.
+- Yani yalnız “fonksiyon return etti” durumu değil, gerçek network etkisi de gözlendi.
+
+Move tarafında kullandığım packet şu formatta:
+
+06 [X*10:2] [Z*10:2] [1C 00] [2D 00] [03] [prevX*10:2] [prevZ*10:2] [1C 00]
+
+Canlı hareket paketinden çıkardığım mantık şu şekilde:
+
+- 06 = move opcode
+- X/Z alanları little-endian ve coordinate * 10
+- prevX/prevZ alanları da yine coordinate * 10
+- 1C 00 sabiti mevcut
+- 2D 00 ve 03 alanları da pakette geliyor
+
+Örnek bir eşleşmede:
+
+- packet içindeki 0x1D06 → 743.0
+- packet içindeki 0x08DA → 226.6
+
+ve bunlar karakterin gerçek pozisyonuyla birebir tuttu.
+
+Ama problem şu noktada başlıyor:
+
+1. Tek 0x06 gönderince karakter sadece küçük bir step atıyor.
+- Bu yüzden move intent aktif kaldığı sürece per-tick tekrar göndermeyi denedim.
+
+2. Çok sık gönderince sorun çıkıyor.
+- Önce yaklaşık 50 ms tick ile denedim.
+- Karakter 1-2 kez hareket etti ama sonra DC oldu.
+- Bunun üzerine throttle ekleyip 1000 ms aralığa çektim.
+
+3. Uzak hedef koordinatını direkt packet’e yazınca doğal yürüyüş davranışı oluşmadı.
+- Karakter hedefe normal koşmak yerine “zip” benzeri anlık konum denemeleri yaptı.
+- Sonra hedefin tam koordinatını değil, player -> target doğrultusunda kısa bir ara nokta göndermeyi denedim.
+- Yani packet target’ını step-based yaptım.
+- Bu sefer de karakter hiç hareket etmemeye başladı.
+
+4. Debug’da zaman zaman socket state tarafında da şu sonucu görüyorum:
+- Socket mode is not live
+- Yani wrapper call her zaman gerçek live send state’ine düşmüyor olabilir.
+
+Şu an vardığım sonuç şu:
+
+Ham 0x06 packet’ini doğru formatta göndermek tek başına, client’ın doğal click-to-move akışını birebir üretmiyor olabilir.
+
+Şüphelendiğim eksik halkalar şunlar:
+
+- sadece packet değil, internal move state / walking flag / path buffer güncellemesi gerekmesi
+- heading/direction bilgisinin başka bir yerde set edilmesi
+- client’ın tıklama sonrası kendi path node’larını üretip seri halde farklı packetler basması
+- 0x06’nın tek başına yeterli olmayıp başka bir internal move function ile birlikte kullanılması
+
+Şu anki backend mantığım özetle şöyle:
+
+- target bulunuyor
+- skill range dışındaysa controller MoveToTarget üretiyor
+- executor move backend’e giriyor
+- move backend current player pos + target pos ile 0x06 payload üretiyor
+- sub_704070 ile gönderiyor
+- ama sonuç gerçek client yürüyüşü gibi stabil değil
+
+Özellikle şu soruların cevabını arıyorum:
+
+1. KO 2620’de gerçek hareket için yalnız 0x06 send etmek yeterli mi?
+2. Yoksa önce/sonra çağrılması gereken internal bir movement function var mı?
+3. Client click-to-move akışında path/waypoint listesi mi oluşturuyor?
+4. prevX/prevZ, 2D 00, 03, 1C 00 alanlarının bilinen özel bir anlamı var mı?
+5. DC yemeden çalışan yaklaşık gerçek move gönderim ritmi nedir?
+6. Elinde doğrulanmış movement trace, internal prototype ya da working pseudo-code var mı?
+
+Kısacası durum şu:
+
+- send zinciri var
+- move opcode var
+- coordinate encode doğru görünüyor
+- ama natural movement pipeline eksik
+
+
+
+Knight Online Orjinali ile WarFare Source movement yapısını karşılaştırdım. Aradaki fark büyük ölçüde çözüldü ve sorun packet formatından çok, WarFare tarafında eksik kalan internal movement akışından kaynaklanıyor.
+
+Senin tespitin genel olarak doğru: sadece 0x06 MOVE packet üretip göndermek, Knight Online Orjinali'ndeki doğal hareket sistemini birebir çalıştırmıyor.
+
+1. 0x06 gerçekten WIZ_MOVE
+2620 tarafında MOVE opcode 0x06. Fakat gönderilen koordinatlar doğrudan NPC/hedef koordinatı değil.
+
+Knight Online Orjinali'nde hareket devam ederken mevcut player state kullanılarak yaklaşık 1.5 saniye ileriye predicted position hesaplanıyor ve packet bunun üzerinden oluşturuluyor.
+
+Kod:
+Current Player Position
++
+Current Direction / Rotation
++
+Current Move Speed
+↓
+Predicted Position
+↓
+0x06 MOVE
+Bu yüzden target'ın uzak X/Z koordinatını doğrudan 0x06 içerisine yazınca doğal koşu yerine zip/position correction benzeri davranış oluşabiliyor.
+
+2. prevX / prevZ olarak düşündüğün alanlar current position
+
+Verdiğin yapı:
+
+Kod:
+06
+[X*10:2]
+[Z*10:2]
+[1C 00]
+[2D 00]
+[03]
+[prevX*10:2]
+[prevZ*10:2]
+[1C 00]
+Knight Online Orjinali ile WarFare Source karşılaştırmasında daha doğru yapı:
+
+Kod:
+06
+[predicted X * 10 : 2]
+[predicted Z * 10 : 2]
+[predicted Y * 10 : 2]
+[move speed * 10 : 2]
+[move flags : 1]
+[current X * 10 : 2]
+[current Z * 10 : 2]
+[current Y * 10 : 2]
+Örnekte:
+
+Kod:
+1C 00 = 28 / 10 = Y 2.8
+2D 00 = 45 / 10 = move speed 4.5
+Yani bunlar sabit alan değil, o anki Y koordinatı ve movement speed değerleri.
+
+Movement flag tarafında da:
+
+Kod:
+01 = MOVE
+03 = MOVE | CONTINUOUS
+mantığı bulunuyor.
+
+3. Asıl fark internal movement state
+
+WarFare tarafında yalnız:
+
+Kod:
+Build 0x06
+Send()
+mantığıyla ilerlemek yeterli değil.
+
+Knight Online Orjinali'ndeki akış daha çok:
+
+Kod:
+Move command
+↓
+Internal target position set
+↓
+Movement state active
+↓
+Path / waypoint processing
+↓
+Heading / yaw update
+↓
+Character local olarak hareket eder
+↓
+Predicted position hesaplanır
+↓
+0x06 gönderilir
+şeklinde.
+
+Yani target X/Y/Z önce internal movement sistemine veriliyor. Packet sender doğrudan NPC koordinatını kullanmıyor.
+
+4. Path / waypoint sistemi mevcut
+
+Knight Online Orjinali'nde 12-byte yapıda waypoint noktaları kullanılıyor:
+
+Kod:
+struct MovePoint
+{
+float x;
+float y;
+float z;
+};
+Client bu noktaları sırayla aktif movement target'ına geçiriyor.
+
+Dolayısıyla:
+
+Kod:
+player -> target direction
+short step
+send 0x06
+mantığı Orjinal Client ile aynı değil.
+
+5. Heading / Yaw ayrı işleniyor
+
+Heading bilgisi 0x06 içerisinde değil. Character hedefe dönerken internal yaw ayrıca güncelleniyor.
+
+Network rotation da ayrı:
+
+Kod:
+09 [yaw * 100 : uint16]
+Bu nedenle sadece X/Z MOVE gönderildiğinde:
+Heading / yaw
+Movement animation/state
+Terrain / collision movement
+Path progress
+Local character transform
+aynı şekilde ilerlemiyor.
+
+6. 50 ms sabit MOVE gönderimi doğru değil
+
+Knight Online Orjinali'nde yaklaşık 1.5 saniyelik movement correction sistemi bulunuyor. Bunun yanında yaklaşık:
+
+Kod:
+~100 ms
+~330 ms
+gibi erken correction kontrolleri de var.
+
+Fakat bu, her 100 veya 330 ms'de zorla MOVE gönderildiği anlamına gelmiyor. Client direction/position farkına bakıyor ve gerektiğinde correction üretiyor.
+
+Bu yüzden:
+
+Kod:
+her 50 ms 0x06 gönder
+mantığı orijinal movement yapısına uymuyor.
+
+1000 ms sabit gönderim de tam çözüm değil; timing movement state'e göre değişiyor.
+
+7. sub_704070 çağrısı tek başına gerçek send garantisi değil
+
+Senin gördüğün:
+
+Socket mode is not live
+
+sonucu da önemli.
+
+Send zincirinde socket state kontrolleri bulunuyor. Bazı durumlarda çağrı gerçekleşse bile packet gerçek live send tarafına düşmeyebiliyor.
+
+Attack tarafında server etkisi görmen zincirin çalıştığını doğruluyor, ancak MOVE için de doğru live socket state'e düşmesi gerekiyor.
+
+Sonuç olarak sorun büyük ölçüde çözüldü:
+
+Mevcut sistem:
+
+Kod:
+Target seç
+↓
+Range dışında
+↓
+Target'a doğru kısa coordinate hesapla
+↓
+0x06 oluştur
+↓
+sub_704070
+↓
+tekrar et
+yerine Knight Online Orjinali'ne daha yakın yapı:
+
+Kod:
+Target seç
+↓
+Internal MoveTarget set et
+↓
+Movement state başlat
+↓
+Path / waypoint işlet
+↓
+Yaw / heading güncelle
+↓
+Character local olarak yürüsün
+↓
+Current position + direction + speed üzerinden predicted position hesapla
+↓
+0x06 MOVE gönder
+↓
+Gerekirse correction gönder
+↓
+Target'a ulaşınca STOP MOVE gönder
+Yani asıl sorun 0x06 packet formatı değil, WarFare Source tarafında Orjinal Client'taki internal locomotion zincirinin eksik uygulanması.
+
+WarFare Source üzerinde karşılaştırılması gereken temel zincir:
+
+Kod:
+sub_819440 -> movement command / controller
+sub_91DBD0 -> target position state
+sub_90ECE0 -> waypoint / path traversal
+sub_84A2E0 -> MOVE packet sender
+sub_84A950 -> movement correction / timer
+sub_90A240 -> yaw / heading update
+sub_84A200 -> rotation packet sender
+Özellikle sub_84A2E0 tarafındaki akışı WarFare Source movement sistemiyle eşleştirdiğinde 0x06'yı manuel olarak sürekli üretmeye gerek kalmaması gerekiyor.
+
+Özetle:
+Knight Online Orjinali ile WarFare Source karşılaştırmasında sorun netleşti. 0x06 karakteri hareket ettiren ana sistem değil; internal movement sisteminin network senkronizasyon çıktısı. WarFare tarafında eksik olan bölüm internal MoveTarget + movement tick + yaw + path + correction zinciri.
+
+Bu zincir tamamlandığında movement tarafı Orjinal Client davranışına çok daha yakın çalışacaktır.
+
+
+
+- 2D 00 ve 03 alanları da pakette geliyor
+burda ilk paketi 2D 00 01 olarak gönder devamın da 2D 00 03 olarak gönder. istediğin koordinat vardığında 00 00 ile sunucuya durduğunu bildir.
+kabaca şöyle
+
+06 xyz 2D 00 01 xyz
+06 xyz 2D 00 03 xyz
+06 xyz 2D 00 03 xyz
+06 xyz 2D 00 03 xyz
+06 xyz 00 00 00 xyz
+
+
+3- inventory okuma
+
+
+#include <Windows.h>
+#include "pointer.h"
+#include <cstdint>
+#include <iostream>
+#include "memory.h"
+#include "vector"
+#include "inv.h"
+#include "otopointer.h"
+
+
+
+// Envanter i�in global diziler
+bool g_slotOccupied[HAVE_MAX] = { false };
+int  g_itemLevel[HAVE_MAX] = { 0 };
+
+// Inn i�in global diziler
+bool g_innHasItem[HAVE_MAX_INN] = { false };
+int  g_innItemLevels[HAVE_MAX_INN] = { 0 };
+
+
+
+//inventory
+DWORD KO_OFF_UIInventory = 0x1e8;
+DWORD KO_OFF_UIInventory_FirstItem = 0x27C + 0x1C;
+DWORD KO_OFF_INV_ITEM_ID = 0x60;
+//inn hostess
+DWORD KO_OFF_INN = 0x23C;
+DWORD KO_OFF_INN_FirstItem = 0x114;
+
+//inn read
+int32_t GetAndLogInn()
+{
+    int32_t totalCount = 0;
+
+    DWORD gameProcMain = *(DWORD*)KO_PTR_GameProcMain;
+    DWORD inventoryBase = *(DWORD*)(gameProcMain + KO_OFF_INN);
+
+    for (int i = 0; i < HAVE_MAX_INN; i++)
+    {
+        DWORD itemPtr = *(DWORD*)(inventoryBase + KO_OFF_INN_FirstItem + (i * 4));
+
+        if (itemPtr == 0)
+        {
+            printf("slot=%d (0x%02X), itemID=0 (LE: 00 00 00 00), count=0 (0x00)\n", i, i);
+            continue;
+        }
+
+        // baseID pointer
+        DWORD baseIDPtr = *(DWORD*)(itemPtr + 0x60);
+        DWORD baseID = (baseIDPtr ? *(DWORD*)baseIDPtr : 0);
+
+        // level pointer
+        DWORD levelPtr = *(DWORD*)(itemPtr + 0x64);
+        DWORD level = (levelPtr ? *(DWORD*)levelPtr : 0);
+
+        // final ID = baseID + level
+        DWORD finalID = baseID + level;
+
+        // count
+        DWORD count = *(DWORD*)(itemPtr + 0x68);
+
+        // little-endian byte dizisi
+        BYTE* b = (BYTE*)&finalID;
+
+        printf(
+            "slot=%d (0x%02X), baseID=%u, level=%u, finalID=%u (LE: %02X %02X %02X %02X), count=%u (0x%X)\n",
+            i,                          // decimal slot
+            i,                          // hex slot
+            baseID,                     // base item ID
+            level,                      // upgrade level
+            finalID,                    // final ID
+            b[0], b[1], b[2], b[3],     // LE byte dizisi
+            count,                      // decimal count
+            count                       // hex count
+        );
+
+        totalCount += count;
+    }
+
+    return totalCount;
+}
+
+//inv read
+
+
+int32_t GetAndLogInventory()
+{
+    int32_t totalCount = 0;
+
+    DWORD gameProcMain = *(DWORD*)KO_PTR_GameProcMain;
+    DWORD inventoryBase = *(DWORD*)(gameProcMain + KO_OFF_UIInventory);
+
+    for (int i = 0; i < HAVE_MAX; i++)
+    {
+        DWORD itemPtr = *(DWORD*)(inventoryBase + KO_OFF_UIInventory_FirstItem + (i * 4));
+
+        if (itemPtr == 0)
+        {
+            g_slotOccupied[i] = false;
+            g_itemLevel[i] = 0;
+
+            printf("slot=%d (0x%02X), EMPTY\n", i, i);
+            continue;
+        }
+
+        g_slotOccupied[i] = true;
+
+        DWORD baseIDPtr = *(DWORD*)(itemPtr + 0x60);
+        DWORD baseID = (baseIDPtr ? *(DWORD*)baseIDPtr : 0);
+
+        DWORD levelPtr = *(DWORD*)(itemPtr + 0x64);
+        DWORD level = (levelPtr ? *(DWORD*)levelPtr : 0);
+
+        g_itemLevel[i] = level;  // global dizide sakla
+
+        DWORD finalID = baseID + level;
+        DWORD count = *(DWORD*)(itemPtr + 0x68);
+
+        BYTE* b = (BYTE*)&finalID;
+
+        printf(
+            "slot=%d (0x%02X), baseID=%u, level=%u, finalID=%u (LE: %02X %02X %02X %02X), count=%u (0x%X)\n",
+            i, i,
+            baseID,
+            level,
+            finalID,
+            b[0], b[1], b[2], b[3],
+            count, count
+        );
+
+        totalCount += count;
+    }
+
+    return totalCount;
+}
+
+
+
+//inn hostese transfer
+void TransferLevel6ItemsToInn()
+{
+    DWORD gameProcMain = *(DWORD*)KO_PTR_GameProcMain;
+    DWORD invBase = *(DWORD*)(gameProcMain + KO_OFF_UIInventory);
+    DWORD innBase = *(DWORD*)(gameProcMain + KO_OFF_INN);
+
+    struct ItemInfo { int slot; DWORD finalID; };
+    std::vector<ItemInfo> items;
+
+    for (int slot = 0; slot < HAVE_MAX; slot++)
+    {
+        DWORD itemPtr = *(DWORD*)(invBase + KO_OFF_UIInventory_FirstItem + (slot * 4));
+        if (!itemPtr) continue;
+
+        DWORD baseIDPtr = *(DWORD*)(itemPtr + 0x60);
+        DWORD baseID = (baseIDPtr ? *(DWORD*)baseIDPtr : 0);
+
+        DWORD levelPtr = *(DWORD*)(itemPtr + 0x64);
+        DWORD level = (levelPtr ? *(DWORD*)levelPtr : 0);
+
+        DWORD finalID = baseID + level;
+
+        if (level == 7) { // items level
+            items.push_back({ slot, finalID });
+        }
+    }
+
+
+    std::vector<int> emptySlots;
+    for (int j = 0; j < HAVE_MAX_INN; j++)
+    {
+        DWORD innItemPtr = *(DWORD*)(innBase + KO_OFF_INN_FirstItem + (j * 4));
+        if (innItemPtr == 0) {
+            emptySlots.push_back(j);
+        }
+    }
+
+    size_t pairCount = min(items.size(), emptySlots.size());
+    for (size_t i = 0; i < pairCount; i++)
+    {
+        int invSlot = items[i].slot;
+        DWORD finalID = items[i].finalID;
+        int innSlot = emptySlots[i];
+
+        BYTE packet[17] = {
+            0x45, 0x02, 0x2F, 0xF0, 0x00, 0x00,
+            0,0,0,0, // itemID
+            0x00,0,     // inventory slot
+            0,0,     // inn slot
+            0x00,0x00,0x00
+        };
+
+        BYTE* idBytes = (BYTE*)&finalID;
+        packet[6] = idBytes[0];
+        packet[7] = idBytes[1];
+        packet[8] = idBytes[2];
+        packet[9] = idBytes[3];
+
+
+        packet[11] = (BYTE)(invSlot & 0xFF);
+
+        packet[12] = (BYTE)(innSlot & 0xFF);  // ikisinden biri fazlal�k kontrol et bi ara
+        packet[13] = (BYTE)((innSlot >> 8) & 0xFF);
+
+        send(packet, sizeof(packet));
+        Sleep(200);
+    }
+}
+
+
+void innItemAl()
+{
+    // Oyun prosesi ve UI taban adreslerini al
+    DWORD gameProcMain = *(DWORD*)KO_PTR_GameProcMain;
+    DWORD invBase = *(DWORD*)(gameProcMain + KO_OFF_UIInventory);
+    DWORD innBase = *(DWORD*)(gameProcMain + KO_OFF_INN);
+
+    // 1. ADIM: Inn'deki +7 itemleri topla
+    struct ItemInfo { int slot; DWORD finalID; };
+    std::vector<ItemInfo> itemsToTransfer;
+
+    for (int slot = 0; slot < HAVE_MAX_INN; slot++) // HAVE_MAX_INN bankadaki max slot say�s�
+    {
+        DWORD itemPtr = *(DWORD*)(innBase + KO_OFF_INN_FirstItem + (slot * 4));
+        if (!itemPtr) continue;
+
+        DWORD baseIDPtr = *(DWORD*)(itemPtr + 0x60);
+        DWORD baseID = (baseIDPtr ? *(DWORD*)baseIDPtr : 0);
+
+        DWORD levelPtr = *(DWORD*)(itemPtr + 0x64);
+        DWORD level = (levelPtr ? *(DWORD*)levelPtr : 0);
+
+        DWORD finalID = baseID + level;
+
+        // Sadece +7 itemleri hedefle
+        if (level == 7) {
+            itemsToTransfer.push_back({ slot, finalID });
+        }
+    }
+
+
+    // 2. ADIM: Envanterdeki bo� slotlar� bul
+    std::vector<int> emptySlots;
+    // 0. slot hari� (varsay�m)
+    for (int j = 1; j < HAVE_MAX; j++)
+    {
+        DWORD invItemPtr = *(DWORD*)(invBase + KO_OFF_UIInventory_FirstItem + (j * 4));
+        if (invItemPtr == 0) {
+            emptySlots.push_back(j);
+        }
+    }
+
+    // 3. ADIM: E�le�tirme ve Paket G�nderme
+    size_t pairCount = min(itemsToTransfer.size(), emptySlots.size());
+    for (size_t i = 0; i < pairCount; i++)
+    {
+
+        int totalInnSlot = itemsToTransfer[i].slot;
+        DWORD finalID = itemsToTransfer[i].finalID;
+        int invSlot = emptySlots[i];
+
+        int innPage = (totalInnSlot / 24);
+        int pageRelativeSlot = totalInnSlot % 24;
+
+        // --- PAKET YAPISI ---
+        BYTE packet[17] = {
+            0x45, 0x03, 0x2F, 0xF0, 0x00, 0x00,
+            0,0,0,0,    // ItemID (6-9)
+            (BYTE)innPage, //  [10]: Inn Page (0, 1, 2...)
+            (BYTE)pageRelativeSlot, //  [11]: Inn Slot (Sayfa ��i: 0-23)
+            (BYTE)(invSlot & 0xFF), // [12]: Inventory Slot
+            0x01,       // [13]: E�ya Miktar� (1 adet)
+            0x00,0x00,0x00 // [14-16]: Bo�/Sonland�r�c�lar
+        };
+
+        // Item ID'yi pakete yerle�tir
+        BYTE* idBytes = (BYTE*)&finalID;
+        packet[6] = idBytes[0];
+        packet[7] = idBytes[1];
+        packet[8] = idBytes[2];
+        packet[9] = idBytes[3];
+
+
+        send(packet, sizeof(packet));
+        Sleep(200);
+    }
+}
+
+
+
+void Upgrade()
+{
+    int slot = 0;
+
+    DWORD gameProcMain = *(DWORD*)KO_PTR_GameProcMain;
+    DWORD inventoryBase = *(DWORD*)(gameProcMain + KO_OFF_UIInventory);
+
+    for (slot = 0; slot <= 27; slot++)
+    {
+        if (g_sentCount >= 31)
+            return;
+
+        DWORD itemPtr = *(DWORD*)(inventoryBase + KO_OFF_UIInventory_FirstItem + (slot * 4));
+        if (!itemPtr)
+            continue;
+
+        DWORD baseIDPtr = *(DWORD*)(itemPtr + 0x60);
+        DWORD baseID = (baseIDPtr ? *(DWORD*)baseIDPtr : 0);
+
+        DWORD levelPtr = *(DWORD*)(itemPtr + 0x64);
+        DWORD level = (levelPtr ? *(DWORD*)levelPtr : 0);
+
+        if (level == 0)
+            continue;
+
+        DWORD finalID_before = baseID + level;
+        //08 74 low class
+        //88 35 mid class
+        //itemID sonras� low class slotu 0x1B son slot
+        //1b slotunu byte olarak fonksiyona ver
+        BYTE packet[] = {
+            0x5B, 0x02, 0x01, 0xCC, 0xAF, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00,
+            0x08, 0x74, 0x9A, 0x16,
+            0x1B, 0x00, 0x00, 0x00, 0x00, 0xFF,
+            0x00, 0x00, 0x00, 0x00, 0xFF,
+            0x00, 0x00, 0x00, 0x00, 0xFF,
+            0x00, 0x00, 0x00, 0x00, 0xFF,
+            0x00, 0x00, 0x00, 0x00, 0xFF,
+            0x00, 0x00, 0x00, 0x00, 0xFF,
+            0x00, 0x00, 0x00, 0x00, 0xFF,
+            0x00, 0x00, 0x00, 0x00, 0xFF
+        };
+
+        BYTE* idBytes = (BYTE*)&finalID_before;
+        packet[7] = idBytes[0];
+        packet[8] = idBytes[1];
+        packet[9] = idBytes[2];
+        packet[10] = idBytes[3];
+        packet[11] = (BYTE)slot;
+
+        send(packet, sizeof(packet));
+        Sleep(100);
+
+        g_sentCount++;
+
+
+        if (g_sentCount >= 31)
+            return;
+    }
+}
+
+//sat�n alma i�lemi maradon armor npc
+
+void buyitems() {
+    snd(
+        0x21, 0x01, 0x11, 0x15, 0x03, 0x00, 0x20, 0xF0, 0x00, 0x00,
+        0x0E,
+        0x29, 0xBC, 0xBF, 0x10, 0x01, 0x01, 0x00, 0x00, 0x12,
+        0x11, 0xC0, 0xBF, 0x10, 0x02, 0x01, 0x00, 0x00, 0x13,
+        0xE1, 0xC7, 0xBF, 0x10, 0x03, 0x01, 0x00, 0x00, 0x15,
+        0xC9, 0xCB, 0xBF, 0x10, 0x04, 0x01, 0x00, 0x00, 0x16,
+        0xE1, 0xC7, 0xBF, 0x10, 0x05, 0x01, 0x00, 0x00, 0x15,
+        0xF9, 0xC3, 0xBF, 0x10, 0x06, 0x01, 0x00, 0x00, 0x14,
+        0x11, 0xC0, 0xBF, 0x10, 0x07, 0x01, 0x00, 0x00, 0x13,
+        0x29, 0xBC, 0xBF, 0x10, 0x08, 0x01, 0x00, 0x00, 0x12,
+        0xC9, 0xCB, 0xBF, 0x10, 0x09, 0x01, 0x00, 0x00, 0x16,
+        0xF9, 0xC3, 0xBF, 0x10, 0x0A, 0x01, 0x00, 0x00, 0x14,
+        0xE1, 0xC7, 0xBF, 0x10, 0x0B, 0x01, 0x00, 0x00, 0x15,
+        0x11, 0xC0, 0xBF, 0x10, 0x0C, 0x01, 0x00, 0x00, 0x13,
+        0x29, 0xBC, 0xBF, 0x10, 0x0D, 0x01, 0x00, 0x00, 0x12,
+        0xC9, 0xCB, 0xBF, 0x10, 0x0E, 0x01, 0x00, 0x00, 0x16
+
+    );
+    Sleep(1000);
+    snd(
+        0x21, 0x01, 0x11, 0x15, 0x03, 0x00, 0x20, 0xF0, 0x00, 0x00,
+        0x0D,
+        0x11, 0xC0, 0xBF, 0x10, 0x0F, 0x01, 0x00, 0x00, 0x13,
+        0xF9, 0xC3, 0xBF, 0x10, 0x10, 0x01, 0x00, 0x00, 0x14,
+        0xE1, 0xC7, 0xBF, 0x10, 0x11, 0x01, 0x00, 0x00, 0x15,
+        0xC9, 0xCB, 0xBF, 0x10, 0x12, 0x01, 0x00, 0x00, 0x16,
+        0x29, 0xBC, 0xBF, 0x10, 0x13, 0x01, 0x00, 0x00, 0x12,
+        0x11, 0xC0, 0xBF, 0x10, 0x14, 0x01, 0x00, 0x00, 0x13,
+        0xF9, 0xC3, 0xBF, 0x10, 0x15, 0x01, 0x00, 0x00, 0x14,
+        0xE1, 0xC7, 0xBF, 0x10, 0x16, 0x01, 0x00, 0x00, 0x15,
+        0x29, 0xBC, 0xBF, 0x10, 0x17, 0x01, 0x00, 0x00, 0x12,
+        0x11, 0xC0, 0xBF, 0x10, 0x18, 0x01, 0x00, 0x00, 0x13,
+        0xC9, 0xCB, 0xBF, 0x10, 0x19, 0x01, 0x00, 0x00, 0x16,
+        0x29, 0xBC, 0xBF, 0x10, 0x1A, 0x01, 0x00, 0x00, 0x12,
+        0xF9, 0xC3, 0xBF, 0x10, 0x1B, 0x01, 0x00, 0x00, 0x14
+
+    );
+}
+
+
+//sat�� paketleri item finalID ekleyece�iz bunlara unutma
+void sndSalePacket(BYTE satilanAdet, DWORD itemID, BYTE slotID, BYTE adet)
+{// etrafta ki npc leri tara npc id yi byte olarak ekle
+    BYTE p[19] = {
+        0x21, 0x02, 0x18, 0xE4, 0x03, 0x00,
+        0x21, 0xF0, 0x00, 0x00,
+        satilanAdet,
+        (BYTE)(itemID),
+        (BYTE)(itemID >> 8),
+        (BYTE)(itemID >> 16),
+        (BYTE)(itemID >> 24),
+        slotID,
+        adet,
+        0x00,
+        0x00
+    };
+
+    send(p, sizeof(p));
+}
+
+void SellAllInventoryItems() {
+    DWORD gameProcMain = *(DWORD*)KO_PTR_GameProcMain;
+    DWORD inventoryBase = *(DWORD*)(gameProcMain + KO_OFF_UIInventory);
+
+    int soldSlots = 0;
+
+    for (int i = 0; i < HAVE_MAX; i++) {
+        if (soldSlots >= HAVE_MAX) break;
+
+        DWORD itemPtr = *(DWORD*)(inventoryBase + KO_OFF_UIInventory_FirstItem + (i * 4));
+        if (!itemPtr) continue;
+
+        DWORD itemBasic = *(DWORD*)(itemPtr + KO_OFF_INV_ITEM_ID);
+        if (!itemBasic) continue;
+        if (itemBasic == 810418000) continue; // filtrelenmi� ID
+
+        DWORD baseID = *(DWORD*)itemBasic;
+        if (baseID == 0) continue;
+
+        DWORD count = *(DWORD*)(itemPtr + 0x68);
+        if (count == 0) count = 1; // count 0 olsa bile en az 1 paket g�nder
+
+        BYTE slotID = (BYTE)i;
+        BYTE satilanAdet = 1;
+
+        //sa�ma bi�ey yazd�m itemin ger�ek ID sinin tutuldu�u adres varsa g�rkem bilir
+        for (int j = 0; j < 6; j++) {
+            DWORD sendID = (baseID & 0xFFFFFF00) | (((baseID & 0xFF) + j) & 0xFF);
+            sndSalePacket(satilanAdet, sendID, slotID, 0x01);
+            Sleep(100);
+        }
+
+        soldSlots++;
+    }
+}
+
+
+
+4- OTO LOOT HK.
+
+Mob öldükten sonra düşen kutunun ID'sini okuyamıyorum. Auto loot için box ID'yi nasıl hooklayabilirim?
+1) Mob ölür, kutu düşer → RECV 0x23 (BoxID öğrenilir)
+2) Kutuyu açma isteği → SEND 0x24 (BoxID gönderilir)
+3) Sunucu cevabı → RECV 0x24 ├─ KISA = red (hata kodu)
+└─ UZUN = içerik listesi
+4) Her dolu slot için → SEND 0x26 (BoxID + ItemID + slot)
+5) Sunucu cevabı → RECV 0x26 ├─ 17 byte = alındı
+└─ 10 byte = alınamadı (hata)
+
+0x23 geldikten sonra kutu açma isteğini 3 saniye sonra gönder direkt gönderirsen ondan açamıyorsundur.
+
+
+
+5- MOBA KOŞMA 
+
+
+Selamlar,
+Karakteri belirli bir koordinata (MOB'a) yürütmek için şu offset'ler var mı?
+KO_OFF_MOVETYPE =0x13B8
+KO_OFF_MOVE = 0x1014
+KO_OFF_MOUSE_X = 0x1020
+KO_OFF_MOUSE_Y = 0x1028
+
+
+
+
+public void MoveCoordinate(int GoX, int GoY)
+{
+if (GoX <= 0 || GoY <= 0) return;
+if (GoX == GetX() && GoY == GetY()) return;
+Write4Byte(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_MOVEType"), 2);
+WriteFloat(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_GoX"), GoX);
+WriteFloat(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_GoY"), GoY);
+Write4Byte(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_MOVE"), 1);
+}
+
+
+#define KO_OFF_GOX 0x1020
+#define KO_OFF_GOY 0x1028
+#define KO_OFF_MOVE 0x1014
+#define KO_OFF_MOVETYPE 0x0140
+
+
+
+İhtiyacı olan arkadaşlar için;
+
+bool WriteMoveToTarget(DWORD chr, float x, float y)
+{
+__try
+{
+*(DWORD*)(chr + KO_OFF_MOVETYPE) = 2;
+*(float*)(chr + KO_OFF_MOUSE_X) = x;
+*(float*)(chr + KO_OFF_MOUSE_Y) = y;
+*(BYTE*) (chr + KO_OFF_MOVE) = 1;
+return true;
+}
+__except (EXCEPTION_EXECUTE_HANDLER)
+{
+return false;
+}
+}
+
+
+
+KO_OFF_MOVETYPE = 0x0140
+KO_OFF_MOVE = 0x1014
+KO_OFF_MOUSE_X = 0x1020
+KO_OFF_MOUSE_Y = 0x1028
+
+
+
+
+

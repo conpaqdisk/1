@@ -1,0 +1,173 @@
+
+
+KO_PTR_CHR = 0x01115834
+
+KO_PTR_DLG = 0x011158FC
+
+KO_PTR_PKT = 0x01115914
+
+KO_SND_FNC = 0x00704070
+
+KO_FMBS = 0x0050DEB0
+
+KO_FLDB = 0x01115840
+
+KO_PTR_LOGIN_REQUEST2 0x007BDD00
+
+KO_PTR_LOAD_SERVER_LIST 0x00BD25D0
+
+KO_PTR_SERVER_SELECT 0x00BD2440
+
+KO_PTR_SHOW_CHANNEL 0x00BD2990
+
+KO_PTR_SELECT_CHANNEL 0x00BD2370
+
+KO_PTR_CONNECT_SERVER 0x007B2670
+
+
+
+#pragma once
+
+// ============================================================================
+// TecHKayS - Knight Online pointer / offset definitions
+// x86 target
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// ANA POINTER'LAR
+// ---------------------------------------------------------------------------
+#define KO_PTR_CHR 0x01115834 // Local character pointer
+#define KO_PTR_PKT 0x01115914 // Socket / packet pointer
+#define KO_FMBS 0x0050DEB0
+#define KO_FLDB 0x01115840
+
+// ---------------------------------------------------------------------------
+// LOGIN / SERVER / CHANNEL POINTER'LARI
+// ---------------------------------------------------------------------------
+#define KO_PTR_LOGIN_REQUEST2 0x007BDD00
+#define KO_PTR_LOAD_SERVER_LIST 0x00BD25D0
+#define KO_PTR_SERVER_SELECT 0x00BD2440
+#define KO_PTR_SHOW_CHANNEL 0x00BD2990
+#define KO_PTR_SELECT_CHANNEL 0x00BD2370
+#define KO_PTR_CONNECT_SERVER 0x007B2670
+
+// ---------------------------------------------------------------------------
+// KARAKTER / PLAYER OFFSET'LERİ
+// ---------------------------------------------------------------------------
+#define KO_OFF_INV 0x1D8
+#define KO_OFF_INV_START 0x298
+#define KO_OFF_DURABILITY 0x6C
+#define KO_OFF_INV_COUNT 0x68
+
+#define KO_OFF_ID 0x6A0
+#define KO_OFF_NAME 0x6A4
+#define KO_OFF_NAME_LEN 0x714
+
+#define KO_OFF_HP 0x6D8
+#define KO_OFF_MAX_HP 0x6D4
+#define KO_OFF_MP 0xBF0
+#define KO_OFF_MAX_MP 0xBEC
+
+#define KO_OFF_CLASS 0x6CC
+#define KO_OFF_LVL 0x6D0
+#define KO_OFF_LEVEL KO_OFF_LVL
+#define KO_OFF_GOLD 0xBFC
+
+#define KO_OFF_MOVE 0x140
+#define KO_OFF_X 0x3CC
+#define KO_OFF_Y 0x3D4
+#define KO_OFF_Z 0x194
+#define KO_OFF_POSX KO_OFF_X
+#define KO_OFF_POSY KO_OFF_Y
+#define KO_OFF_POSZ KO_OFF_Z
+
+#define KO_OFF_STATE 0x134
+#define KO_OFF_WH 0x6DC
+#define KO_OFF_ZONE 0xC90
+#define KO_OFF_NATION 0x6C4
+
+// ---------------------------------------------------------------------------
+// FONKSIYON / GLOBAL POINTER'LAR
+// ---------------------------------------------------------------------------
+#define KO_PTR_MSGBOX 0xF368F0
+#define KO_PTR_FNCZ 0x53EE20
+#define KO_PTR_SMMBFNC 0x520A70
+#define KO_PTR_FMBS 0x50E390
+#define KO_PERI_PTR 0x7C8860
+#define KO_DEATH_EFFECT 0x59CC09
+#define KO_FAKE_ITEM 0x598420
+
+#define KO_OFF_MSGBOX 0x28
+
+// ---------------------------------------------------------------------------
+// INVENTORY ITEM OFFSET'LERİ
+// ---------------------------------------------------------------------------
+#define KO_OFF_INV_ITEM_ID 0x68
+#define KO_OFF_INV_ITEM_EX 0x6C
+
+// ---------------------------------------------------------------------------
+// CHARACTER STATS / PROGRESSION
+// ---------------------------------------------------------------------------
+#define KO_OFF_EXP 0xC60
+#define KO_OFF_MAX_EXP 0xC58
+#define KO_OFF_WEIGHT 0xC78
+#define KO_OFF_MAX_WEIGHT 0xC70
+
+#define KO_OFF_ATTACK 0xCAC
+#define KO_OFF_DEFENCE 0xCB4
+#define KO_OFF_STATP 0xC44
+#define KO_OFF_HPP 0xC8C
+#define KO_OFF_MPP 0xCA4
+#define KO_OFF_STRP 0xC84
+#define KO_OFF_INTP 0xC9C
+#define KO_OFF_DEXP 0xC94
+
+// ---------------------------------------------------------------------------
+// MOVEMENT / TARGET / COMBAT
+// ---------------------------------------------------------------------------
+#define KO_OFF_MOVETYPE 0x444
+#define KO_OFF_MOUSE_X 0x10C4
+#define KO_OFF_MOUSE_Y 0x10CC
+#define KO_OFF_MOUSE_Z 0x10C8
+
+#define KO_OFF_TARGET_MOVE 0x3AC
+#define KO_OFF_TARGET_STATU 0x270
+#define KO_OFF_STEALTH 0x3E8
+#define KO_OFF_MOB 0x6D4
+#define KO_OFF_LOOT 0x948
+
+// ---------------------------------------------------------------------------
+// SKILL
+// ---------------------------------------------------------------------------
+#define KO_OFF_SKILL_BASE 0x21C
+#define KO_OFF_USE_SKILL_BASE 0x21C
+#define KO_OFF_USE_SKILL_ID 0x14C
+
+// ---------------------------------------------------------------------------
+// PARTY
+// ---------------------------------------------------------------------------
+#define KO_OFF_PT 0x340
+#define KO_OFF_PTBASE 0x238
+#define KO_OFF_PTCOUNT 0x344
+#define KO_OFF_PTHP 0x18
+
+// ---------------------------------------------------------------------------
+// DIGER
+// ---------------------------------------------------------------------------
+#define KO_OFF_DC 0xA0
+#define KO_OFF_PET_ID 0xF74
+
+// ---------------------------------------------------------------------------
+// MEVCUT KAYNAKTA KULLANILAN DEGER
+// ---------------------------------------------------------------------------
+#define KO_OFF_VAULT_KEY_VALUE 0x660
+
+// ---------------------------------------------------------------------------
+// SEND PACKET
+// Kullanım: ECX = socket pointer, PUSH len, PUSH buffer, CALL KO_FNC_SND
+// ---------------------------------------------------------------------------
+#define KO_FNC_SND 0x00704070
+
+
+
+

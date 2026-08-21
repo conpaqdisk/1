@@ -1,0 +1,172 @@
+// ================================================================
+// BULUNAMAYAN POINTER'LAR - MEVCUT PATTERN'LER
+// ================================================================
+
+// 1. KO_PTR_CHAR (BULUNAMADI!)
+// Dosya: dllmain.cpp - Find_KO_PTR_CHAR()
+// Mevcut Pattern:
+static char pattern[] = "8B 0D ?? ?? ?? ?? 89 45 FC 8B 45 FC";
+// Açıklama: Karakter pointer'ı. Oyuna girince aktif olur.
+// Çalışmama sebebi: Oyun güncellemesinde opcode'lar değişmiş.
+
+// 2. KO_PTR_GameProcMain (BULUNAMADI!)
+// Dosya: dllmain.cpp - Find_KO_PTR_GameProcMain()
+// Mevcut Pattern: KO_PTR_CHAR'dan hesaplanıyor
+DWORD Find_KO_PTR_GameProcMain() {
+    DWORD chr = Find_KO_PTR_CHAR();
+    if (chr != 0) {
+        return chr - 0x30;  // CHR - 0x30
+    }
+    return 0;
+}
+// Açıklama: CHR bulunamayınca bu da bulunamıyor.
+
+// 3. KO_PTR_GameProcIntro (BULUNAMADI!)
+// Dosya: dllmain.cpp - Find_KO_PTR_GameProcIntro()
+// Mevcut Pattern: GameProcMain'den hesaplanıyor
+DWORD Find_KO_PTR_GameProcIntro() {
+    DWORD main = Find_KO_PTR_GameProcMain();
+    if (main != 0) {
+        return main + 0x8;
+    }
+    return 0;
+}
+// Açıklama: Main bulunamayınca bu da bulunamıyor.
+
+// 4. KO_PTR_CGameProcIntroChrSelect (BULUNAMADI!)
+// Dosya: dllmain.cpp - Find_KO_PTR_CGameProcIntroChrSelect()
+// Mevcut Pattern: GameProcMain'den hesaplanıyor
+DWORD Find_KO_PTR_CGameProcIntroChrSelect() {
+    DWORD main = Find_KO_PTR_GameProcMain();
+    if (main != 0) {
+        return main + 0x4;
+    }
+    return 0;
+}
+// Açıklama: Main bulunamayınca bu da bulunamıyor.
+
+// 5. KO_PTR_GameProcLogo (BULUNAMADI!)
+// Dosya: dllmain.cpp - Find_KO_PTR_GameProcLogo()
+// Mevcut Pattern: GameProcMain'den hesaplanıyor
+DWORD Find_KO_PTR_GameProcLogo() {
+    DWORD main = Find_KO_PTR_GameProcMain();
+    if (main != 0) {
+        return main + 0xC;
+    }
+    return 0;
+}
+// Açıklama: Main bulunamayınca bu da bulunamıyor.
+
+// 6. KO_PTR_RECV1 (BULUNAMADI!)
+// Dosya: dllmain.cpp - Find_KO_PTR_RECV1()
+// Mevcut Pattern: GameProcMain'den hesaplanıyor
+DWORD Find_KO_PTR_RECV1() {
+    DWORD main = Find_KO_PTR_GameProcMain();
+    if (main != 0) {
+        return main + 0x14;
+    }
+    return 0;
+}
+// Açıklama: Main bulunamayınca bu da bulunamıyor.
+
+// 7. KO_PTR_PKT (BULUNAMADI!)
+// Dosya: dllmain.cpp - FindKO_PTR_PKT()
+// Mevcut Pattern:
+static char pattern[] = "51 8B 0D ?? ?? ?? ?? 8D 44 24 ?? 50 E8";
+// Açıklama: Paket/socket pointer'ı.
+
+// 8. KO_CAMERA_HOOK (BULUNAMADI!)
+// Dosya: dllmain.cpp - Find_KO_CAMERA_HOOK()
+// Mevcut Pattern:
+static char pattern[] = "D9 05 ?? ?? ?? ?? D8 0D ?? ?? ?? ?? D9 05";
+// Açıklama: Kamera hook adresi.
+
+
+// ================================================================
+//   KNIGHT ONLINE - TUM OFFSET VE POINTER SONUCLARI
+//   Tarih: 2026-07-22 23:06:50
+//   Toplam: 74 offset (bulunan: 66)
+//   - Pointer: 3
+//   - Function: 5
+//   - Offset: 58
+// ================================================================
+
+// ==================== POINTERS ====================
+// #define KO_PTR_CHAR BULUNAMADI
+// #define KO_PTR_GameProcMain BULUNAMADI
+// #define KO_PTR_GameProcIntro BULUNAMADI
+// #define KO_PTR_CGameProcIntroChrSelect BULUNAMADI
+// #define KO_PTR_GameProcLogo BULUNAMADI
+// #define KO_PTR_RECV1 BULUNAMADI
+// #define KO_PTR_PKT BULUNAMADI
+#define KO_PTR_FLDB 0x010FB838
+#define KO_PTR_MSG 0x01106588
+#define KO_PTR_DLG 0x01105834
+
+// ==================== FUNCTIONS ====================
+#define KO_SND_FNC 0x004A5D95
+#define KO_FNC_SEL 0x0040446D
+#define KO_FNC_NPC_IS_ENEMY 0x00B3B680
+// #define KO_CAMERA_HOOK BULUNAMADI
+#define KO_FNC_Map_Next_Item 0x004F5A30
+#define KO_FNC_LOGIN3 0x00B3B680
+
+// ==================== OFFSETS ====================
+#define KO_OFF_POSX 0x03CC
+#define KO_OFF_POSY 0x03D4
+#define KO_OFF_POSZ 0x0194
+#define KO_OFF_m_fYawToReach 0x017C
+#define KO_OFF_e_StateMove 0x0140
+#define KO_OFF_ID 0x06A0
+#define KO_OFF_NAME 0x06A4
+#define KO_OFF_TARGET 0x0660
+#define KO_OFF_CLASS 0x06CC
+#define KO_OFF_NATION 0x06C4
+#define KO_OFF_LEVEL 0x06D0
+#define KO_OFF_HP 0x06D8
+#define KO_OFF_MAX_HP 0x06D4
+#define KO_OFF_MP 0x0BF0
+#define KO_OFF_MAX_MP 0x0BEC
+#define KO_OFF_GOLD 0x0BFC
+#define KO_OFF_WH 0x06DC
+#define KO_OFF_SPEED 0x07EE
+#define KO_OFF_m_eState 0x0134
+#define KO_OFF_ZONE 0x0C90
+#define KO_OFF_NAME_LEN 0x0714
+#define KO_OFF_MOB_PROTO_ID 0x0CE0
+#define KO_OFF_UIInventory 0x01D8
+#define KO_OFF_UIInventory_FirstItem 0x0298
+#define KO_OFF_UIWareHouseDlg 0x022C
+#define KO_OFF_UIWareHouseDlg_FirstItem 0x0114
+#define KO_BANK_TOTAL_SLOTS 0x00C0
+#define KO_OFF_UILoginIntro 0x002C
+#define KO_OFF_UI_EDIT_ID 0x0118
+#define KO_OFF_UI_EDIT_PASS 0x011C
+#define KO_OFF_UI_EDIT_VALUE 0x0134
+#define KO_OFF_UI_EDIT_VALUE_PlaceHolder 0x014C
+#define KO_OFF_UI_EDIT_LENGTH 0x015C
+#define KO_OFF_UI_EDIT_LENGTH3 0x0144
+#define KO_OFF_UI_CONNECT_BUTTON 0x0120
+#define KO_OFF_Notice_Ok_Button 0x024C
+#define KO_OFF_Notice_Text_Parent 0x0218
+#define KO_OFF_UI_VISIBLE 0x00EA
+#define KO_OFF_UILoginIntro_CLICK_FNC 0x0084
+#define KO_OFF_FIRST_SERVER 0x0254
+#define KO_OFF_SERVER_OFFSET 0x001C
+#define KO_OFF_CH_LIST 0x0480
+#define KO_OFF_UILoginIntro_CH1_OFF_2 0x0008
+#define KO_OFF_UILoginIntro_CH1_OFF_3 0x0114
+#define KO_OFF_CUICharacterSelect 0x0598
+#define KO_OFF_CUICharacterSelect_Start_button 0x0110
+#define KO_OFF_CUICharacterSelect_Left_button 0x0124
+#define KO_OFF_ITEM_BASIC 0x0060
+#define KO_OFF_ITEM_UPGRADE_PTR 0x0064
+#define KO_OFF_ITEM_COUNT 0x0068
+#define KO_OFF_ITEM_DURABILITY 0x006C
+#define KO_OFF_ENTITY_MOB_LIST 0x0060
+#define KO_OFF_ENTITY_USER_LIST 0x0068
+#define KO_OFF_ENTITY_PTR 0x0014
+#define KO_OFF_VISIBLE 0x0300
+#define KO_OFF_PET_STATE 0x03D4
+#define KO_OFF_PET_HPBAR 0x03E8
+#define KO_OFF_PET_SATIAT 0x018C

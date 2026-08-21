@@ -1,0 +1,635 @@
+Evet. Bu madde özellikle önemli: **kullanıcının verdiği yeni kod/özellik sadece tek dosyaya sıkıştırılmayacak; gerekli tüm dosyalara doğru şekilde entegre edilecek. Ancak çıktı olarak yalnızca değiştirilen/eklenen dosyaların tam ve eksiksiz son hali paylaşılacak.** Mevcut dosyalarda değişiklik yoksa tekrar paylaşılmayacak.
+
+# SteelBox Projesi – Eksiksiz Kod Entegrasyonu, Tam Dosya Üretimi ve Sürekli Uyumluluk Kontrolü
+
+SteelBox projesi üzerinde çalışırken aşağıdaki kuralların tamamına kesinlikle uy.
+
+Bu projenin amacı örnek, demo, taslak, iskelet veya yarım kod üretmek değildir.
+
+Amaç:
+
+**Verilen mevcut kodları, yeni eklenen kodları ve proje gereksinimlerini doğru şekilde birleştirerek tüm proje ile uyumlu, eksiksiz, gerçek ve çalışabilir bir yazılım oluşturmaktır.**
+
+---
+
+# 1. PROJEDEKİ HİÇBİR DOSYAYI ATLAMA
+
+Projede bulunan bütün dosyaları dikkate al.
+
+Her dosyanın:
+
+* mevcut içeriğini,
+* görevini,
+* bağımlılıklarını,
+* kullandığı class'ları,
+* kullandığı method'ları,
+* property'lerini,
+* event'lerini,
+* diğer dosyalarla ilişkisini
+
+kontrol et.
+
+Bir dosya küçük veya yardımcı dosya olsa bile gerektiğinde analiz edilmelidir.
+
+---
+
+# 2. VERDİĞİM EK KODLARIN TAMAMINI PROJEYE ENTEGRE ET
+
+Ben sana yeni bir kod, class, method, property, servis, modül, UI özelliği veya başka bir kod parçası verdiğimde bunu yalnızca gönderdiğim dosyaya ekleme.
+
+Önce kodun proje içerisindeki görevini ve bağımlılıklarını analiz et.
+
+Ardından:
+
+1. Bu kod hangi dosyada bulunmalı?
+2. Hangi mevcut class ile ilişkili?
+3. Hangi servisleri kullanıyor?
+4. Hangi modüller tarafından kullanılacak?
+5. Hangi modeller gerekiyor?
+6. Hangi configuration gerekiyor?
+7. Hangi interface'ler gerekiyor?
+8. Hangi UI bağlantıları gerekiyor?
+9. Başka hangi dosyaların değiştirilmesi gerekiyor?
+10. Mevcut kodda hangi method/property/dependency değişmeli?
+
+bunların tamamını tespit et.
+
+Sonrasında verdiğim kodu **gerektiği bütün dosyalara doğru şekilde entegre et.**
+
+---
+
+# 3. VERİLEN KODUN TAMAMINI KORU VE DOĞRU YERLERE EKLE
+
+Bana verdiğim bir kod parçası veya özellik varsa:
+
+* kodun önemli bölümlerini seçip geri kalanını atlama,
+* sadece örnek kısmını alma,
+* kodu kısaltma,
+* placeholder'a dönüştürme,
+* pseudo-code'a çevirme,
+* sadece class iskeleti oluşturma.
+
+Verilen kodun proje mimarisine uygun olan **tam işlevini** koru.
+
+Eğer verilen kod mevcut mimariyle doğrudan uyumlu değilse, kodu körü körüne yapıştırma.
+
+Gerekli uyarlamaları yap.
+
+Ancak işlevselliği kaybetme.
+
+---
+
+# 4. KOD SADECE TEK DOSYAYA SIĞDIRILMAYACAK
+
+Yeni eklenen bir özellik birden fazla dosyanın değiştirilmesini gerektiriyorsa gerekli tüm dosyaları güncelle.
+
+Örneğin yeni bir özellik:
+
+```text
+UI
+ ↓
+Module
+ ↓
+Manager
+ ↓
+Service
+ ↓
+Model
+ ↓
+Configuration
+```
+
+gerektiriyorsa yalnızca UI dosyasına kod ekleyip diğer katmanları boş bırakma.
+
+Gereken bütün dosyalara gerekli kodları ekle.
+
+---
+
+# 5. ENTEGRASYONDAN SONRA TÜM PROJEYLE UYUMLULUK KONTROLÜ YAP
+
+Yeni kodu ekledikten sonra sadece ekleme yapılan dosyayı kontrol etme.
+
+Yeni kodun etkilediği bütün dosyaları kontrol et.
+
+Özellikle:
+
+* namespace
+* using
+* class
+* interface
+* inheritance
+* constructor
+* method
+* property
+* event
+* dependency
+* configuration
+* service
+* module
+* model
+* UI bağlantısı
+* logging
+* exception handling
+* async/await
+* thread safety
+* lifecycle
+
+kontrol edilmelidir.
+
+---
+
+# 6. BİR DEĞİŞİKLİK BAŞKA DOSYAYI ETKİLİYORSA ONU DA DÜZELT
+
+Örneğin:
+
+`MemoryService.cs`
+
+içerisinde bir method değiştiyse ve bu method:
+
+```text
+CombatManager.cs
+LootModule.cs
+PotionModule.cs
+StatusService.cs
+```
+
+tarafından kullanılıyorsa bu dosyaların tamamını kontrol et.
+
+Uyumsuzluk varsa düzelt.
+
+Aynı şekilde:
+
+* class adı değişirse,
+* namespace değişirse,
+* method parametresi değişirse,
+* return type değişirse,
+* constructor değişirse,
+* property değişirse,
+* interface değişirse
+
+ilgili bütün referansları güncelle.
+
+---
+
+# 7. SADECE DEĞİŞTİRİLEN DOSYALARIN TAM HALİNİ PAYLAŞ
+
+Bu kural özellikle önemlidir.
+
+Çıktıda projenin bütün dosyalarını tekrar tekrar paylaşma.
+
+Yalnızca:
+
+* yeni oluşturulan dosyaları,
+* değiştirilen dosyaları,
+* silinmesi/değişmesi gereken dosyaları
+
+paylaş.
+
+**Ancak paylaşılan her değişiklik dosyasının tamamını paylaş.**
+
+Örneğin:
+
+```text
+C:\SteellBox\Services\MemoryService.cs
+```
+
+dosyasında yalnızca bir method değişmiş olsa bile:
+
+```text
+MemoryService.cs
+```
+
+dosyasının sadece methodunu değil, **dosyanın tamamını** paylaş.
+
+Yani:
+
+```text
+DEĞİŞEN DOSYA → TAM DOSYA
+```
+
+kuralı zorunludur.
+
+---
+
+# 8. DEĞİŞMEYEN DOSYALARI TEKRAR PAYLAŞMA
+
+Bir dosyada hiçbir değişiklik yapılmadıysa onu çıktı olarak tekrar verme.
+
+Örneğin:
+
+```text
+SettingsForm.cs → değişmedi
+LogViewer.cs → değişmedi
+StatusService.cs → değişti
+MemoryService.cs → değişti
+CombatManager.cs → değişti
+```
+
+çıktıda yalnızca:
+
+```text
+StatusService.cs
+MemoryService.cs
+CombatManager.cs
+```
+
+dosyalarının **tam ve eksiksiz son halleri** bulunmalıdır.
+
+---
+
+# 9. DOSYA DEĞİŞİKLİK MATRİSİ OLUŞTUR
+
+Kod üretmeden önce değişiklikleri belirle.
+
+Örneğin:
+
+```text
+Yeni özellik
+    ↓
+MemoryService.cs       → DEĞİŞTİ
+CombatManager.cs       → DEĞİŞTİ
+LootModule.cs          → DEĞİŞTİ
+SettingsForm.cs        → DEĞİŞMEDİ
+LogViewer.cs           → DEĞİŞMEDİ
+```
+
+Böylece hangi dosyaların değiştiği net olarak belli olur.
+
+Son çıktıda sadece değişen dosyaların tam sürümlerini paylaş.
+
+---
+
+# 10. ÖRNEK / İSKELET / PLACEHOLDER KOD YASAK
+
+Kesinlikle şu tarz kodlar üretme:
+
+```csharp
+// TODO
+```
+
+```csharp
+// implement later
+```
+
+```csharp
+// example
+```
+
+```csharp
+// ...
+```
+
+```csharp
+// diğer kodlar
+```
+
+```csharp
+throw new NotImplementedException();
+```
+
+```csharp
+public class ExampleService
+{
+}
+```
+
+veya yalnızca:
+
+```csharp
+public void Execute()
+{
+}
+```
+
+gibi işlevsiz yapılar oluşturma.
+
+Benden istenen özellik için **gerçek implementasyon** oluştur.
+
+---
+
+# 11. DOSYANIN SADECE DEĞİŞEN KISMINI PAYLAŞMA
+
+Örneğin mevcut dosyada:
+
+```csharp
+public class Test
+{
+    // 500 satır kod
+}
+```
+
+ve yalnızca 10 satır değiştiyse sadece o 10 satırı verme.
+
+Dosyanın:
+
+**500+ satırlık güncel tam halini**
+
+paylaş.
+
+Bu kural tüm `.cs`, `.json`, `.config`, `.xml`, `.csproj` ve diğer proje dosyaları için geçerlidir.
+
+---
+
+# 12. TAM DOSYA PAYLAŞIM FORMATI
+
+Her değiştirilen dosya için:
+
+```text
+C:\SteellBox\DOSYA\DOSYAADI.cs
+```
+
+ardından:
+
+```csharp
+DOSYANIN TAM GÜNCEL HALİ
+```
+
+ver.
+
+Örneğin:
+
+```text
+C:\SteellBox\Services\MemoryService.cs
+```
+
+```csharp
+// MemoryService.cs dosyasının TAM ve GÜNCEL hali
+```
+
+---
+
+# 13. MEVCUT KODU SİLİP YERİNE ÖRNEK KOD KOYMA
+
+Mevcut kodu incelemeden:
+
+* dosyayı sıfırdan örnek kodla değiştirme,
+* mevcut özellikleri silme,
+* mevcut dependency'leri yok sayma,
+* mevcut methodları kaldırma,
+* mevcut eventleri kaldırma,
+* mevcut configuration sistemini bozma.
+
+Önce mevcut yapıyı analiz et.
+
+Sonra gerekli değişiklikleri yap.
+
+---
+
+# 14. KOD ENTEGRASYONUNDA KOD TEKRARLARINI ÖNLE
+
+Yeni verdiğim kod mevcut projede bulunan bir işlemi tekrar ediyorsa ikinci bir implementation oluşturma.
+
+Örneğin aynı işlem:
+
+```text
+Memory Read
+Logging
+Configuration
+Validation
+Error Handling
+HTTP Request
+Account Management
+Status Management
+Statistics
+```
+
+gibi alanlarda zaten varsa mevcut merkezi yapıyı kullan.
+
+Gerekliyse mevcut merkezi yapıyı geliştir.
+
+Aynı işi yapan iki farklı servis veya method oluşturma.
+
+---
+
+# 15. DOSYALAR ARASI UYUMLULUK SÜREKLİ KONTROL EDİLECEK
+
+Uyumluluk kontrolü yalnızca projenin sonunda yapılmayacak.
+
+Her değişiklikten sonra yapılacak.
+
+Süreç:
+
+```text
+Kodu analiz et
+    ↓
+Gerekli dosyaları belirle
+    ↓
+Kodları entegre et
+    ↓
+Değişen dosyaları tam olarak oluştur
+    ↓
+Bağımlılıkları kontrol et
+    ↓
+Referansları kontrol et
+    ↓
+Proje genelini tekrar kontrol et
+    ↓
+Uyumsuzluk varsa düzelt
+    ↓
+Tekrar kontrol et
+    ↓
+Sonraki değişikliğe geç
+```
+
+---
+
+# 16. BİR DOSYAYI DEĞİŞTİRİRKEN ETKİLEDİĞİ DOSYALARI BUL
+
+Her değişiklik için:
+
+**"Bu dosyada değişiklik yaptım, işlem tamam."**
+
+şeklinde hareket etme.
+
+Şunu sor:
+
+> Bu değişiklik projede başka hangi dosyaları etkiliyor?
+
+Örneğin:
+
+```text
+Service değişikliği
+→ Manager
+→ Module
+→ UI
+→ Model
+→ Configuration
+```
+
+veya:
+
+```text
+Model değişikliği
+→ Service
+→ Manager
+→ Module
+→ UI
+```
+
+gibi etki zincirini kontrol et.
+
+---
+
+# 17. GERÇEK PROJE MANTIĞIYLA HAREKET ET
+
+Kodları birbirinden bağımsız örnekler gibi yazma.
+
+Tüm projeyi tek bir sistem olarak ele al.
+
+Bir dosyada oluşturulan:
+
+* class,
+* method,
+* property,
+* interface,
+* event,
+* enum,
+* model
+
+başka dosyalarda nasıl kullanılacağını dikkate alarak oluşturulmalıdır.
+
+---
+
+# 18. BİR ÖZELLİĞİN TAMAMLANMASI
+
+Bir özellik ancak aşağıdaki koşulların tamamı sağlandığında tamamlanmış kabul edilir:
+
+* Kod yazıldı.
+* Gerekli bütün dosyalara entegre edildi.
+* Mevcut kodla birleştirildi.
+* Dependency'ler tamamlandı.
+* Configuration tamamlandı.
+* Logging tamamlandı.
+* Exception handling tamamlandı.
+* Gerekli UI bağlantıları tamamlandı.
+* Gerekli Service bağlantıları tamamlandı.
+* Gerekli Module bağlantıları tamamlandı.
+* Referanslar güncellendi.
+* Proje genelindeki uyumluluk kontrol edildi.
+* Değişen dosyaların tam halleri oluşturuldu.
+
+---
+
+# 19. VARSAYIM YAPMA
+
+Bir dosyanın gerçek içeriğine erişimin yoksa içeriği uydurma.
+
+Olmayan:
+
+* class,
+* method,
+* API,
+* model,
+* service,
+* dependency
+
+varmış gibi davranma.
+
+Mevcut koddan doğrulanamayan bir noktada önce proje içindeki ilişkili dosyaları incele.
+
+---
+
+# 20. SON ÇIKTI STANDARDI
+
+Her çalışma sonunda çıktı şu mantıkta olmalıdır:
+
+### Analiz
+
+Hangi dosyaların neden değiştiğini kısa şekilde belirt.
+
+### Değişen dosyalar
+
+Sadece değişen veya yeni oluşturulan dosyaları listele.
+
+### Tam dosyalar
+
+Listelenen her dosyanın **eksiksiz ve güncel tamamını** paylaş.
+
+### Uyumluluk
+
+Yapılan değişikliklerin diğer proje dosyalarıyla uyumluluğunu kontrol et.
+
+Değişmeyen dosyaları tekrar paylaşma.
+
+---
+
+# 21. SON KONTROL
+
+Kodları teslim etmeden önce:
+
+* [ ] Hiçbir gerekli dosya atlanmadı.
+* [ ] Verilen yeni kodların tamamı doğru yerlere entegre edildi.
+* [ ] Gereken bütün dosyalar güncellendi.
+* [ ] Gereksiz dosya değiştirilmedi.
+* [ ] Değişmeyen dosyalar tekrar paylaşılmadı.
+* [ ] Değişen her dosyanın TAM hali paylaşıldı.
+* [ ] Yeni oluşturulan her dosyanın TAM hali paylaşıldı.
+* [ ] Placeholder yok.
+* [ ] TODO yok.
+* [ ] Pseudo-code yok.
+* [ ] Boş implementation yok.
+* [ ] Örnek implementation yok.
+* [ ] Yarım kod yok.
+* [ ] Eksik method yok.
+* [ ] Eksik dependency yok.
+* [ ] Namespace'ler uyumlu.
+* [ ] Class referansları uyumlu.
+* [ ] Method çağrıları uyumlu.
+* [ ] Constructor'lar uyumlu.
+* [ ] Property'ler uyumlu.
+* [ ] Interface'ler uyumlu.
+* [ ] UI bağlantıları uyumlu.
+* [ ] Services bağlantıları uyumlu.
+* [ ] Modules bağlantıları uyumlu.
+* [ ] Configuration uyumlu.
+* [ ] Logging uyumlu.
+* [ ] Exception handling kontrol edildi.
+* [ ] Async/await kontrol edildi.
+* [ ] Thread safety kontrol edildi.
+* [ ] Resource/dispose kontrol edildi.
+* [ ] Proje genelinde cross-check yapıldı.
+
+---
+
+# EN ÖNEMLİ TALİMAT
+
+Bu projede bundan sonra **örnek kod üretme.**
+
+**İskelet üretme.**
+
+**Boş class üretme.**
+
+**Boş method üretme.**
+
+**Placeholder üretme.**
+
+**TODO bırakma.**
+
+**Sadece değişen methodu paylaşma.**
+
+**Mevcut kodun geri kalanını `...` ile gizleme.**
+
+Benden yeni bir kod veya özellik geldiğinde:
+
+**1. Önce kodu analiz et.**
+
+**2. Projede eklenmesi gereken bütün noktaları tespit et.**
+
+**3. Verdiğim kodun tamamını doğru mimariyle gerekli yerlere entegre et.**
+
+**4. Gereken tüm dosyaları güncelle.**
+
+**5. Değişikliklerin diğer dosyalarla uyumluluğunu sürekli kontrol et.**
+
+**6. Uyumsuzluk varsa onu da düzelt.**
+
+**7. Son olarak yalnızca değişen veya yeni oluşturulan dosyaları paylaş.**
+
+**8. Ancak paylaştığın her dosyanın tamamını, eksiksiz ve güncel son haliyle paylaş.**
+
+Temel kural:
+
+> **Verilen kodun tamamı → gerekli tüm yerlere doğru entegrasyon → sürekli proje geneli uyumluluk kontrolü → yalnızca değişen dosyaların TAM ve EKSİKSİZ son halleri.**
+
+Bu kurala bundan sonraki tüm SteelBox kodlama çalışmalarında kesinlikle uy.
+

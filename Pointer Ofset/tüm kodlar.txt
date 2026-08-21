@@ -1,0 +1,1401 @@
+📁 PROJE KÖK DİZİNİ: C:\Users\Fujitsu\Desktop\stellbox bt\imguisystems\
+📄 Kök Dizin Dosyaları
+C:\Users\Fujitsu\Desktop\stellbox bt\imguisystems\CMakeLists.txt
+cmake
+cmake_minimum_required(VERSION 3.10)
+project(SteellBox VERSION 1.4.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Alt dizinler
+add_subdirectory(external/imgui)
+add_subdirectory(external/implot)
+
+# Kaynak dosyalar
+set(SOURCES
+    src/main.cpp
+    src/Core/AppState.cpp
+    src/Core/Commands.cpp
+    src/Core/Encoding.cpp
+    src/Core/Logger.cpp
+    src/Core/Memory.cpp
+    src/Core/Offsets.cpp
+    src/UI/Overlay/Hook.cpp
+    src/UI/Overlay/Drawing.cpp
+    src/UI/Panels/DashboardPanel.cpp
+    src/UI/Panels/GeneralPanel.cpp
+    src/UI/Panels/CombatPanel.cpp
+    src/UI/Panels/AutomationPanel.cpp
+    src/UI/Panels/ChatPanel.cpp
+    src/UI/Panels/PartyPanel.cpp
+    src/UI/Panels/InventoryPanel.cpp
+    src/UI/Panels/SupplyPanel.cpp
+    src/UI/Panels/MobPanel.cpp
+    src/UI/Panels/TimersPanel.cpp
+    src/UI/Panels/LogPanel.cpp
+    src/UI/Panels/SettingsPanel.cpp
+    src/UI/Panels/UpgradePanel.cpp
+    src/UI/Panels/FishingPanel.cpp
+    src/UI/Panels/MiningPanel.cpp
+    src/UI/Panels/ClassPanels/WarriorPanel.cpp
+    src/UI/Panels/ClassPanels/RoguePanel.cpp
+    src/UI/Panels/ClassPanels/MagePanel.cpp
+    src/UI/Panels/ClassPanels/PriestPanel.cpp
+)
+
+set(HEADERS
+    src/main.h
+    src/Core/AppState.h
+    src/Core/Commands.h
+    src/Core/Encoding.h
+    src/Core/Logger.h
+    src/Core/Memory.h
+    src/Core/Offsets.h
+    src/UI/Overlay/Hook.h
+    src/UI/Overlay/Drawing.h
+    src/UI/Interfaces/IPanel.h
+    src/UI/Panels/DashboardPanel.h
+    src/UI/Panels/GeneralPanel.h
+    src/UI/Panels/CombatPanel.h
+    src/UI/Panels/AutomationPanel.h
+    src/UI/Panels/ChatPanel.h
+    src/UI/Panels/PartyPanel.h
+    src/UI/Panels/InventoryPanel.h
+    src/UI/Panels/SupplyPanel.h
+    src/UI/Panels/MobPanel.h
+    src/UI/Panels/TimersPanel.h
+    src/UI/Panels/LogPanel.h
+    src/UI/Panels/SettingsPanel.h
+    src/UI/Panels/UpgradePanel.h
+    src/UI/Panels/FishingPanel.h
+    src/UI/Panels/MiningPanel.h
+    src/UI/Panels/ClassPanels/WarriorPanel.h
+    src/UI/Panels/ClassPanels/RoguePanel.h
+    src/UI/Panels/ClassPanels/MagePanel.h
+    src/UI/Panels/ClassPanels/PriestPanel.h
+)
+
+add_library(SteellBox SHARED ${SOURCES} ${HEADERS})
+
+target_include_directories(SteellBox PRIVATE
+    src
+    src/Core
+    src/UI
+    src/UI/Overlay
+    src/UI/Interfaces
+    src/UI/Panels
+    src/UI/Panels/ClassPanels
+    external/imgui
+    external/imgui/backends
+    external/implot
+    external/detours
+)
+
+target_link_libraries(SteellBox PRIVATE
+    imgui
+    implot
+    detours
+    d3d9
+    d3dx9
+    winmm
+    user32
+    kernel32
+    gdi32
+)
+
+if(WIN32)
+    target_compile_definitions(SteellBox PRIVATE _CRT_SECURE_NO_WARNINGS)
+    target_compile_options(SteellBox PRIVATE /utf-8)
+    set_target_properties(SteellBox PROPERTIES COMPILE_FLAGS "/D_UNICODE /DUNICODE")
+endif()
+📄 src/main.cpp (DLL Giriş Noktası)
+cpp
+#include <windows.h>
+#include "UI/Overlay/Hook.h"
+#include "Core/Logger.h"
+#include "Core/AppState.h"
+
+HMODULE g_hModule = nullptr;
+
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
+    switch (ul_reason_for_call) {
+    case DLL_PROCESS_ATTACH:
+        g_hModule = hModule;
+        DisableThreadLibraryCalls(hModule);
+        AllocConsole();
+        freopen("CONOUT$", "w", stdout);
+        freopen("CONIN$", "r", stdin);
+
+        Logger::Get().Initialize("steellbox.log");
+        AppState::Get().Initialize();
+
+        Hook::hDDLModule = hModule;
+        CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
+            Hook::HookDirectX();
+            return 0;
+        }, nullptr, 0, nullptr);
+        break;
+
+    case DLL_PROCESS_DETACH:
+        Hook::UnHookDirectX();
+        AppState::Get().Shutdown();
+        Logger::Get().Shutdown();
+        FreeConsole();
+        break;
+    }
+    return TRUE;
+}
+📄 src/UI/Overlay/Hook.h
+cpp
+#pragma once
+#include <windows.h>
+#include <d3d9.h>
+#include <d3dx9.h>
+#include <detours.h>
+
+typedef HRESULT(__stdcall* tEndScene)(LPDIRECT3DDEVICE9);
+typedef HRESULT(__stdcall* tReset)(LPDIRECT3DDEVICE9, D3DPRESENT_PARAMETERS*);
+typedef LRESULT(CALLBACK* tWndProc)(HWND, UINT, WPARAM, LPARAM);
+
+class Hook {
+public:
+    static LPDIRECT3DDEVICE9 pDevice;
+    static tEndScene oEndScene;
+    static tReset oReset;
+    static HWND window;
+    static HMODULE hDDLModule;
+    static int windowHeight, windowWidth;
+    static void* d3d9Device[119];
+    static WNDPROC OWndProc;
+
+    static void HookDirectX();
+    static void UnHookDirectX();
+    static void HookWindow();
+    static void UnHookWindow();
+    static LRESULT WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+private:
+    static bool GetD3D9Device(void** pTable, size_t Size);
+    static HWND GetProcessWindow();
+};
+📄 src/UI/Overlay/Hook.cpp
+cpp
+#include "Hook.h"
+#include "Drawing.h"
+#include "Core/AppState.h"
+#include "Core/Commands.h"
+#include "Core/Logger.h"
+
+LPDIRECT3DDEVICE9 Hook::pDevice = nullptr;
+tEndScene Hook::oEndScene = nullptr;
+tReset Hook::oReset = nullptr;
+HWND Hook::window = nullptr;
+HMODULE Hook::hDDLModule = nullptr;
+int Hook::windowHeight = 0;
+int Hook::windowWidth = 0;
+void* Hook::d3d9Device[119];
+WNDPROC Hook::OWndProc = nullptr;
+
+bool Hook::GetD3D9Device(void** pTable, size_t Size) {
+    HWND hWnd = GetProcessWindow();
+    if (!hWnd) return false;
+
+    WNDCLASSEXA wc = { sizeof(WNDCLASSEXA), CS_CLASSDC, DefWindowProcA, 0L, 0L, GetModuleHandleA(nullptr), nullptr, nullptr, nullptr, nullptr, "DummyWindow", nullptr };
+    RegisterClassExA(&wc);
+    HWND hDummy = CreateWindowExA(0, "DummyWindow", nullptr, WS_OVERLAPPEDWINDOW, 0, 0, 100, 100, nullptr, nullptr, wc.hInstance, nullptr);
+    if (!hDummy) return false;
+
+    LPDIRECT3D9 pD3D = Direct3DCreate9(D3D_SDK_VERSION);
+    if (!pD3D) { DestroyWindow(hDummy); return false; }
+
+    D3DPRESENT_PARAMETERS pp = { 0 };
+    pp.Windowed = TRUE;
+    pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+    pp.hDeviceWindow = hDummy;
+
+    LPDIRECT3DDEVICE9 pDevice = nullptr;
+    HRESULT hr = pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hDummy, D3DCREATE_SOFTWARE_VERTEXPROCESSING, &pp, &pDevice);
+    if (FAILED(hr)) { pD3D->Release(); DestroyWindow(hDummy); return false; }
+
+    memcpy(pTable, *(void***)pDevice, Size);
+
+    pDevice->Release();
+    pD3D->Release();
+    DestroyWindow(hDummy);
+    return true;
+}
+
+HWND Hook::GetProcessWindow() {
+    DWORD pid = GetCurrentProcessId();
+    HWND hWnd = nullptr;
+    do {
+        hWnd = FindWindowEx(nullptr, hWnd, nullptr, nullptr);
+        DWORD windowPid;
+        GetWindowThreadProcessId(hWnd, &windowPid);
+        if (pid == windowPid) {
+            char className[256];
+            GetClassNameA(hWnd, className, sizeof(className));
+            if (strcmp(className, "KnightOnline") == 0) break;
+        }
+    } while (hWnd != nullptr);
+    return hWnd;
+}
+
+void Hook::HookDirectX() {
+    if (GetD3D9Device(d3d9Device, sizeof(d3d9Device))) {
+        oEndScene = (tEndScene)d3d9Device[42];
+        oReset = (tReset)d3d9Device[16];
+
+        DetourTransactionBegin();
+        DetourUpdateThread(GetCurrentThread());
+        DetourAttach(&(PVOID&)oEndScene, Drawing::hkEndScene);
+        DetourAttach(&(PVOID&)oReset, hkReset);
+        DetourTransactionCommit();
+
+        LOG_INFO("DirectX 9 hook başarıyla kuruldu.");
+    }
+
+    Commands::InitializePipeServer();
+}
+
+void Hook::UnHookDirectX() {
+    if (Drawing::bInit) {
+        UnHookWindow();
+        ImGui_ImplDX9_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+    }
+    Drawing::bInit = false;
+
+    Commands::ShutdownPipeServer();
+
+    if (oEndScene && oReset) {
+        DetourTransactionBegin();
+        DetourUpdateThread(GetCurrentThread());
+        DetourDetach(&(PVOID&)oEndScene, Drawing::hkEndScene);
+        DetourDetach(&(PVOID&)oReset, hkReset);
+        DetourTransactionCommit();
+        LOG_INFO("DirectX 9 hook kaldırıldı.");
+    }
+}
+
+void Hook::HookWindow() {
+    if (!window) return;
+    OWndProc = (WNDPROC)SetWindowLongPtr(window, GWLP_WNDPROC, (LONG_PTR)WndProc);
+}
+
+void Hook::UnHookWindow() {
+    if (window && OWndProc) {
+        SetWindowLongPtr(window, GWLP_WNDPROC, (LONG_PTR)OWndProc);
+    }
+}
+
+LRESULT Hook::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    if (Drawing::bInit) {
+        ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
+    }
+    return CallWindowProc(OWndProc, hWnd, uMsg, wParam, lParam);
+}
+
+HRESULT __stdcall hkReset(LPDIRECT3DDEVICE9 pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters) {
+    if (Drawing::bInit) {
+        ImGui_ImplDX9_InvalidateDeviceObjects();
+        HRESULT hr = Hook::oReset(pDevice, pPresentationParameters);
+        ImGui_ImplDX9_CreateDeviceObjects();
+        return hr;
+    }
+    return Hook::oReset(pDevice, pPresentationParameters);
+}
+📄 src/UI/Overlay/Drawing.h
+cpp
+#pragma once
+#include <windows.h>
+#include <imgui.h>
+#include <imgui_impl_dx9.h>
+#include <imgui_impl_win32.h>
+#include <d3d9.h>
+#include "Hook.h"
+
+class Drawing {
+public:
+    static BOOL bInit;
+    static bool bDisplay;
+    static bool bSetPos;
+    static ImVec2 vWindowPos;
+    static ImVec2 vWindowSize;
+
+    static HRESULT __stdcall hkEndScene(const LPDIRECT3DDEVICE9);
+    static void InitImGui(const LPDIRECT3DDEVICE9);
+};
+📄 src/UI/Overlay/Drawing.cpp
+cpp
+#include "Drawing.h"
+#include "UI/Panels/DashboardPanel.h"
+#include "UI/Panels/GeneralPanel.h"
+#include "UI/Panels/CombatPanel.h"
+#include "UI/Panels/AutomationPanel.h"
+#include "UI/Panels/ChatPanel.h"
+#include "UI/Panels/PartyPanel.h"
+#include "UI/Panels/InventoryPanel.h"
+#include "UI/Panels/SupplyPanel.h"
+#include "UI/Panels/MobPanel.h"
+#include "UI/Panels/TimersPanel.h"
+#include "UI/Panels/LogPanel.h"
+#include "UI/Panels/SettingsPanel.h"
+#include "UI/Panels/UpgradePanel.h"
+#include "UI/Panels/FishingPanel.h"
+#include "UI/Panels/MiningPanel.h"
+#include "UI/Panels/ClassPanels/WarriorPanel.h"
+#include "UI/Panels/ClassPanels/RoguePanel.h"
+#include "UI/Panels/ClassPanels/MagePanel.h"
+#include "UI/Panels/ClassPanels/PriestPanel.h"
+#include "Core/AppState.h"
+#include "Core/Commands.h"
+#include "Core/Logger.h"
+#include "Core/Encoding.h"
+
+BOOL Drawing::bInit = FALSE;
+bool Drawing::bDisplay = true;
+bool Drawing::bSetPos = false;
+ImVec2 Drawing::vWindowPos = { 0, 0 };
+ImVec2 Drawing::vWindowSize = { 0, 0 };
+
+std::unique_ptr<DashboardPanel> g_dashboardPanel;
+std::unique_ptr<GeneralPanel> g_generalPanel;
+std::unique_ptr<CombatPanel> g_combatPanel;
+std::unique_ptr<AutomationPanel> g_automationPanel;
+std::unique_ptr<ChatPanel> g_chatPanel;
+std::unique_ptr<PartyPanel> g_partyPanel;
+std::unique_ptr<InventoryPanel> g_inventoryPanel;
+std::unique_ptr<SupplyPanel> g_supplyPanel;
+std::unique_ptr<MobPanel> g_mobPanel;
+std::unique_ptr<TimersPanel> g_timersPanel;
+std::unique_ptr<LogPanel> g_logPanel;
+std::unique_ptr<SettingsPanel> g_settingsPanel;
+std::unique_ptr<UpgradePanel> g_upgradePanel;
+std::unique_ptr<FishingPanel> g_fishingPanel;
+std::unique_ptr<MiningPanel> g_miningPanel;
+std::unique_ptr<WarriorPanel> g_warriorPanel;
+std::unique_ptr<RoguePanel> g_roguePanel;
+std::unique_ptr<MagePanel> g_magePanel;
+std::unique_ptr<PriestPanel> g_priestPanel;
+
+HRESULT Drawing::hkEndScene(const LPDIRECT3DDEVICE9 pDevice) {
+    if (!Hook::pDevice) Hook::pDevice = pDevice;
+
+    if (!bInit) InitImGui(pDevice);
+
+    if (GetAsyncKeyState(VK_INSERT) & 1) bDisplay = !bDisplay;
+    if (GetAsyncKeyState(VK_END) & 1) {
+        Hook::UnHookDirectX();
+        CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)FreeLibrary, Hook::hDDLModule, 0, nullptr);
+        return Hook::oEndScene(pDevice);
+    }
+
+    // Pipe komutlarını işle
+    std::string command = Commands::ReadPipe();
+    if (!command.empty()) {
+        std::string response = Commands::Process(command);
+        Commands::WritePipe(response);
+    }
+
+    ImGui_ImplDX9_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+
+    if (bDisplay) {
+        ImGui::SetNextWindowSize(ImVec2(1024, 720), ImGuiCond_FirstUseEver);
+        ImGui::Begin("SteelBox V1.4", &bDisplay, ImGuiWindowFlags_MenuBar);
+
+        if (ImGui::BeginMenuBar()) {
+            if (ImGui::BeginMenu("Dosya")) {
+                if (ImGui::MenuItem("Ayarları Kaydet")) AppState::Get().SaveSettings();
+                if (ImGui::MenuItem("Çıkış")) { Hook::UnHookDirectX(); FreeLibrary(Hook::hDDLModule); }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Görünüm")) {
+                // Panel visibility toggles
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Yardım")) {
+                if (ImGui::MenuItem("Hakkında")) { /* About dialog */ }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMenuBar();
+        }
+
+        if (ImGui::BeginTabBar("MainTabs")) {
+            if (ImGui::BeginTabItem("Gösterge")) { g_dashboardPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Genel")) { g_generalPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Savaş")) { g_combatPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Otomasyon")) { g_automationPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Chat Engelle")) { g_chatPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Parti")) { g_partyPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Envanter")) { g_inventoryPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("İkmal")) { g_supplyPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Canavarlar")) { g_mobPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Zamanlayıcılar")) { g_timersPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Log")) { g_logPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Ayarlar")) { g_settingsPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Yükseltme")) { g_upgradePanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Balıkçılık")) { g_fishingPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Madencilik")) { g_miningPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Warrior")) { g_warriorPanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Rogue")) { g_roguePanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Mage")) { g_magePanel->Render(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Priest")) { g_priestPanel->Render(); ImGui::EndTabItem(); }
+            ImGui::EndTabBar();
+        }
+
+        ImGui::End();
+    }
+
+    ImGui::EndFrame();
+    ImGui::Render();
+    ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
+
+    return Hook::oEndScene(pDevice);
+}
+
+void Drawing::InitImGui(const LPDIRECT3DDEVICE9 pDevice) {
+    D3DDEVICE_CREATION_PARAMETERS CP;
+    pDevice->GetCreationParameters(&CP);
+    Hook::window = CP.hFocusWindow;
+
+    Hook::HookWindow();
+
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr;
+
+    // Unicode font yükle
+    io.Fonts->AddFontDefault();
+
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplWin32_Init(Hook::window);
+    ImGui_ImplDX9_Init(pDevice);
+
+    // Panelleri oluştur
+    g_dashboardPanel = std::make_unique<DashboardPanel>();
+    g_generalPanel = std::make_unique<GeneralPanel>();
+    g_combatPanel = std::make_unique<CombatPanel>();
+    g_automationPanel = std::make_unique<AutomationPanel>();
+    g_chatPanel = std::make_unique<ChatPanel>();
+    g_partyPanel = std::make_unique<PartyPanel>();
+    g_inventoryPanel = std::make_unique<InventoryPanel>();
+    g_supplyPanel = std::make_unique<SupplyPanel>();
+    g_mobPanel = std::make_unique<MobPanel>();
+    g_timersPanel = std::make_unique<TimersPanel>();
+    g_logPanel = std::make_unique<LogPanel>();
+    g_settingsPanel = std::make_unique<SettingsPanel>();
+    g_upgradePanel = std::make_unique<UpgradePanel>();
+    g_fishingPanel = std::make_unique<FishingPanel>();
+    g_miningPanel = std::make_unique<MiningPanel>();
+    g_warriorPanel = std::make_unique<WarriorPanel>();
+    g_roguePanel = std::make_unique<RoguePanel>();
+    g_magePanel = std::make_unique<MagePanel>();
+    g_priestPanel = std::make_unique<PriestPanel>();
+
+    bInit = TRUE;
+    LOG_INFO("ImGui overlay başlatıldı.");
+}
+📄 src/Core/Commands.h (2620'den)
+cpp
+#pragma once
+#include <string>
+#include <windows.h>
+
+class Commands {
+public:
+    static void InitializePipeServer();
+    static void ShutdownPipeServer();
+    static std::string ReadPipe();
+    static void WritePipe(const std::string& response);
+    static std::string Process(const std::string& command);
+};
+📄 src/Core/Commands.cpp (2620'den)
+cpp
+#include "Commands.h"
+#include "AppState.h"
+#include "Logger.h"
+#include <sstream>
+
+static HANDLE g_hPipe = INVALID_HANDLE_VALUE;
+static const wchar_t* PIPE_NAME = L"\\\\.\\pipe\\SteelBoxPipe";
+
+void Commands::InitializePipeServer() {
+    if (g_hPipe != INVALID_HANDLE_VALUE) return;
+    g_hPipe = CreateNamedPipeW(
+        PIPE_NAME,
+        PIPE_ACCESS_DUPLEX,
+        PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
+        1, 1024, 1024, 0, nullptr
+    );
+    if (g_hPipe != INVALID_HANDLE_VALUE) {
+        LOG_INFO("Named pipe sunucusu oluşturuldu.");
+    }
+}
+
+void Commands::ShutdownPipeServer() {
+    if (g_hPipe != INVALID_HANDLE_VALUE) {
+        CloseHandle(g_hPipe);
+        g_hPipe = INVALID_HANDLE_VALUE;
+        LOG_INFO("Named pipe sunucusu kapatıldı.");
+    }
+}
+
+std::string Commands::ReadPipe() {
+    if (g_hPipe == INVALID_HANDLE_VALUE) return "";
+    if (!ConnectNamedPipe(g_hPipe, nullptr)) {
+        if (GetLastError() != ERROR_PIPE_CONNECTED) return "";
+    }
+    char buffer[1024] = {0};
+    DWORD bytesRead;
+    if (ReadFile(g_hPipe, buffer, sizeof(buffer) - 1, &bytesRead, nullptr)) {
+        return std::string(buffer, bytesRead);
+    }
+    DisconnectNamedPipe(g_hPipe);
+    return "";
+}
+
+void Commands::WritePipe(const std::string& response) {
+    if (g_hPipe == INVALID_HANDLE_VALUE || response.empty()) return;
+    DWORD bytesWritten;
+    WriteFile(g_hPipe, response.c_str(), (DWORD)response.size(), &bytesWritten, nullptr);
+    FlushFileBuffers(g_hPipe);
+    DisconnectNamedPipe(g_hPipe);
+}
+
+std::string Commands::Process(const std::string& command) {
+    if (command == "PING") {
+        return "PONG";
+    }
+    if (command == "CHARINFO") {
+        auto& mem = Memory::Get();
+        auto chr = mem.GetChrPtr();
+        if (chr) {
+            std::stringstream ss;
+            ss << "NAME:" << mem.GetCharacterName(chr) << "|LVL:" << mem.GetLevel(chr)
+               << "|HP:" << mem.GetHP(chr) << "|MAXHP:" << mem.GetMaxHP(chr)
+               << "|MP:" << mem.GetMP(chr) << "|MAXMP:" << mem.GetMaxMP(chr)
+               << "|GOLD:" << mem.GetGold(chr);
+            return ss.str();
+        }
+        return "ERROR:No character";
+    }
+    if (command == "TOWN") {
+        // Town ışınlanma paketi gönder
+        return "TOWN_OK";
+    }
+    if (command.find("LICENSE:") == 0) {
+        std::string key = command.substr(8);
+        bool valid = AppState::Get().ValidateLicense(key);
+        return valid ? "LICENSE_OK" : "LICENSE_FAIL";
+    }
+    return "UNKNOWN_COMMAND";
+}
+📄 src/Core/Encoding.h (2620'den)
+cpp
+#pragma once
+#include <string>
+#include <windows.h>
+
+class Encoding {
+public:
+    static std::string UTF8ToANSI(const std::string& utf8) {
+        if (utf8.empty()) return {};
+        int len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), (int)utf8.size(), NULL, 0);
+        std::wstring wide(len, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), (int)utf8.size(), &wide[0], len);
+        len = WideCharToMultiByte(CP_ACP, 0, wide.c_str(), (int)wide.size(), NULL, 0, NULL, NULL);
+        std::string ansi(len, '\0');
+        WideCharToMultiByte(CP_ACP, 0, wide.c_str(), (int)wide.size(), &ansi[0], len, NULL, NULL);
+        return ansi;
+    }
+
+    static std::wstring UTF8ToWide(const std::string& utf8) {
+        if (utf8.empty()) return {};
+        int len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), (int)utf8.size(), NULL, 0);
+        std::wstring wide(len, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), (int)utf8.size(), &wide[0], len);
+        return wide;
+    }
+
+    static std::string WideToUTF8(const std::wstring& wide) {
+        if (wide.empty()) return {};
+        int len = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), (int)wide.size(), NULL, 0, NULL, NULL);
+        std::string utf8(len, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), (int)wide.size(), &utf8[0], len, NULL, NULL);
+        return utf8;
+    }
+};
+📄 src/Core/Offsets.h (2610-11'den güncellendi)
+cpp
+#pragma once
+#include <cstdint>
+
+namespace Offsets {
+    // 2610-11 sürümleri için güncel offset'ler
+    static constexpr uintptr_t KO_PTR_CHR = 0x01115834;
+    static constexpr uintptr_t KO_PTR_PKT = 0x01115914;
+    static constexpr uintptr_t KO_PTR_MSGBOX = 0xF368F0;
+    static constexpr uintptr_t KO_PTR_FNCZ = 0x53EE20;
+    static constexpr uintptr_t KO_PTR_SMMBFNC = 0x520A70;
+    static constexpr uintptr_t KO_PTR_FMBS = 0x50E390;
+    static constexpr uintptr_t KO_PERI_PTR = 0x7C8860;
+    static constexpr uintptr_t KO_FMBS = 0x0050DEB0;
+    static constexpr uintptr_t KO_FLDB = 0x01115840;
+    static constexpr uintptr_t KO_DEATH_EFFECT = 0x59CC09;
+    static constexpr uintptr_t KO_FAKE_ITEM = 0x598420;
+
+    static constexpr uintptr_t KO_PTR_LOGIN_REQUEST2 = 0x007BDD00;
+    static constexpr uintptr_t KO_PTR_LOAD_SERVER_LIST = 0x00BD25D0;
+    static constexpr uintptr_t KO_PTR_SERVER_SELECT = 0x00BD2440;
+    static constexpr uintptr_t KO_PTR_SHOW_CHANNEL = 0x00BD2990;
+    static constexpr uintptr_t KO_PTR_SELECT_CHANNEL = 0x00BD2370;
+    static constexpr uintptr_t KO_PTR_CONNECT_SERVER = 0x007B2670;
+
+    static constexpr uintptr_t KO_OFF_INV = 0x1D8;
+    static constexpr uintptr_t KO_OFF_INV_START = 0x298;
+    static constexpr uintptr_t KO_OFF_DURABILITY = 0x6C;
+    static constexpr uintptr_t KO_OFF_INV_COUNT = 0x68;
+    static constexpr uintptr_t KO_OFF_ID = 0x6A0;
+    static constexpr uintptr_t KO_OFF_NAME = 0x6A4;
+    static constexpr uintptr_t KO_OFF_NAME_LEN = 0x714;
+    static constexpr uintptr_t KO_OFF_HP = 0x6D8;
+    static constexpr uintptr_t KO_OFF_MAX_HP = 0x6D4;
+    static constexpr uintptr_t KO_OFF_MP = 0xBF0;
+    static constexpr uintptr_t KO_OFF_MAX_MP = 0xBEC;
+    static constexpr uintptr_t KO_OFF_CLASS = 0x6CC;
+    static constexpr uintptr_t KO_OFF_LVL = 0x6D0;
+    static constexpr uintptr_t KO_OFF_GOLD = 0xBFC;
+    static constexpr uintptr_t KO_OFF_MOVE = 0x140;
+    static constexpr uintptr_t KO_OFF_X = 0x3CC;
+    static constexpr uintptr_t KO_OFF_Y = 0x3D4;
+    static constexpr uintptr_t KO_OFF_Z = 0x194;
+    static constexpr uintptr_t KO_OFF_STATE = 0x134;
+    static constexpr uintptr_t KO_OFF_WH = 0x6DC;
+    static constexpr uintptr_t KO_OFF_ZONE = 0xC90;
+    static constexpr uintptr_t KO_OFF_NATION = 0x6C4;
+    static constexpr uintptr_t KO_OFF_MSGBOX = 0x28;
+
+    static constexpr uintptr_t KO_OFF_INV_ITEM_ID = 0x68;
+    static constexpr uintptr_t KO_OFF_INV_ITEM_EX = 0x6C;
+
+    static constexpr uintptr_t KO_OFF_EXP = 0xC60;
+    static constexpr uintptr_t KO_OFF_MAX_EXP = 0xC58;
+    static constexpr uintptr_t KO_OFF_WEIGHT = 0xC78;
+    static constexpr uintptr_t KO_OFF_MAX_WEIGHT = 0xC70;
+    static constexpr uintptr_t KO_OFF_ATTACK = 0xCAC;
+    static constexpr uintptr_t KO_OFF_DEFENCE = 0xCB4;
+    static constexpr uintptr_t KO_OFF_STATP = 0xC44;
+    static constexpr uintptr_t KO_OFF_HPP = 0xC8C;
+    static constexpr uintptr_t KO_OFF_MPP = 0xCA4;
+    static constexpr uintptr_t KO_OFF_STRP = 0xC84;
+    static constexpr uintptr_t KO_OFF_INTP = 0xC9C;
+    static constexpr uintptr_t KO_OFF_DEXP = 0xC94;
+
+    static constexpr uintptr_t KO_OFF_SKILL_BASE = 0x21C;
+    static constexpr uintptr_t KO_OFF_USE_SKILL_BASE = 0x21C;
+    static constexpr uintptr_t KO_OFF_USE_SKILL_ID = 0x14C;
+
+    static constexpr uintptr_t KO_OFF_PT = 0x340;
+    static constexpr uintptr_t KO_OFF_PTBASE = 0x238;
+    static constexpr uintptr_t KO_OFF_PTCOUNT = 0x344;
+    static constexpr uintptr_t KO_OFF_PTHP = 0x18;
+
+    static constexpr uintptr_t KO_OFF_DC = 0xA0;
+    static constexpr uintptr_t KO_OFF_PET_ID = 0xF74;
+    static constexpr uintptr_t KO_OFF_VAULT_KEY_VALUE = 0x660;
+
+    static constexpr uintptr_t KO_FNC_SND = 0x00704070;
+}
+📄 src/Core/Memory.h
+cpp
+#pragma once
+#include <windows.h>
+#include <cstdint>
+#include <string>
+
+class Memory {
+public:
+    static Memory& Get();
+
+    bool AttachToGame();
+    void Detach();
+
+    template<typename T>
+    T Read(uintptr_t address) {
+        T value{};
+        if (m_hProcess != INVALID_HANDLE_VALUE) {
+            __try {
+                SIZE_T bytesRead;
+                ReadProcessMemory(m_hProcess, (LPCVOID)address, &value, sizeof(T), &bytesRead);
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+                return value;
+            }
+        }
+        return value;
+    }
+
+    template<typename T>
+    bool Write(uintptr_t address, const T& value) {
+        if (m_hProcess == INVALID_HANDLE_VALUE) return false;
+        SIZE_T bytesWritten;
+        return WriteProcessMemory(m_hProcess, (LPVOID)address, &value, sizeof(T), &bytesWritten) == TRUE;
+    }
+
+    uintptr_t GetBaseAddress() const { return m_baseAddress; }
+    uintptr_t GetChrPtr();
+    uintptr_t GetPktPtr();
+
+    int GetHP(uintptr_t chr);
+    int GetMaxHP(uintptr_t chr);
+    int GetMP(uintptr_t chr);
+    int GetMaxMP(uintptr_t chr);
+    int GetLevel(uintptr_t chr);
+    int GetGold(uintptr_t chr);
+    float GetPosX(uintptr_t chr);
+    float GetPosY(uintptr_t chr);
+    float GetPosZ(uintptr_t chr);
+    std::string GetCharacterName(uintptr_t chr);
+
+private:
+    Memory() = default;
+    ~Memory() { Detach(); }
+    Memory(const Memory&) = delete;
+    Memory& operator=(const Memory&) = delete;
+
+    HANDLE m_hProcess = INVALID_HANDLE_VALUE;
+    uintptr_t m_baseAddress = 0;
+    DWORD m_processId = 0;
+};
+📄 src/Core/Memory.cpp
+cpp
+#include "Memory.h"
+#include "Offsets.h"
+#include "Logger.h"
+#include <psapi.h>
+#include <tlhelp32.h>
+
+Memory& Memory::Get() {
+    static Memory instance;
+    return instance;
+}
+
+bool Memory::AttachToGame() {
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        LOG_ERROR("Process snapshot oluşturulamadı");
+        return false;
+    }
+
+    PROCESSENTRY32W pe = { sizeof(PROCESSENTRY32W) };
+    bool found = false;
+    if (Process32FirstW(snapshot, &pe)) {
+        do {
+            if (wcscmp(pe.szExeFile, L"KnightOnLine.exe") == 0 ||
+                wcscmp(pe.szExeFile, L"KnightOnline.exe") == 0) {
+                m_processId = pe.th32ProcessID;
+                found = true;
+                break;
+            }
+        } while (Process32NextW(snapshot, &pe));
+    }
+    CloseHandle(snapshot);
+
+    if (!found) {
+        LOG_ERROR("KnightOnLine.exe bulunamadı!");
+        return false;
+    }
+
+    m_hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, m_processId);
+    if (m_hProcess == INVALID_HANDLE_VALUE) {
+        LOG_ERROR("Proses açılamadı, yönetici yetkisi gerekli");
+        return false;
+    }
+
+    HMODULE modules[1024];
+    DWORD needed;
+    if (EnumProcessModules(m_hProcess, modules, sizeof(modules), &needed)) {
+        m_baseAddress = (uintptr_t)modules[0];
+    } else {
+        LOG_ERROR("Base adresi bulunamadı");
+        Detach();
+        return false;
+    }
+
+    LOG_INFO("Oyun sürecine bağlanıldı, PID: %d, Base: 0x%llX", m_processId, m_baseAddress);
+    return true;
+}
+
+void Memory::Detach() {
+    if (m_hProcess != INVALID_HANDLE_VALUE) {
+        CloseHandle(m_hProcess);
+        m_hProcess = INVALID_HANDLE_VALUE;
+    }
+    m_baseAddress = 0;
+}
+
+uintptr_t Memory::GetChrPtr() {
+    return Read<uintptr_t>(m_baseAddress + Offsets::KO_PTR_CHR);
+}
+
+uintptr_t Memory::GetPktPtr() {
+    return Read<uintptr_t>(m_baseAddress + Offsets::KO_PTR_PKT);
+}
+
+int Memory::GetHP(uintptr_t chr) {
+    return Read<int>(chr + Offsets::KO_OFF_HP);
+}
+
+int Memory::GetMaxHP(uintptr_t chr) {
+    return Read<int>(chr + Offsets::KO_OFF_MAX_HP);
+}
+
+int Memory::GetMP(uintptr_t chr) {
+    return Read<int>(chr + Offsets::KO_OFF_MP);
+}
+
+int Memory::GetMaxMP(uintptr_t chr) {
+    return Read<int>(chr + Offsets::KO_OFF_MAX_MP);
+}
+
+int Memory::GetLevel(uintptr_t chr) {
+    return Read<int>(chr + Offsets::KO_OFF_LVL);
+}
+
+int Memory::GetGold(uintptr_t chr) {
+    return Read<int>(chr + Offsets::KO_OFF_GOLD);
+}
+
+float Memory::GetPosX(uintptr_t chr) {
+    return Read<float>(chr + Offsets::KO_OFF_X);
+}
+
+float Memory::GetPosY(uintptr_t chr) {
+    return Read<float>(chr + Offsets::KO_OFF_Y);
+}
+
+float Memory::GetPosZ(uintptr_t chr) {
+    return Read<float>(chr + Offsets::KO_OFF_Z);
+}
+
+std::string Memory::GetCharacterName(uintptr_t chr) {
+    char name[32] = {};
+    if (m_hProcess != INVALID_HANDLE_VALUE) {
+        __try {
+            ReadProcessMemory(m_hProcess, (LPCVOID)(chr + Offsets::KO_OFF_NAME), name, 32, nullptr);
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            return "";
+        }
+    }
+    return std::string(name);
+}
+📄 src/Core/AppState.h
+cpp
+#pragma once
+#include <string>
+#include <vector>
+#include <mutex>
+
+struct Account {
+    std::string username;
+    std::string passwordHash;
+    std::string server;
+    std::string platform;
+    std::string characterName;
+    bool isActive = false;
+    int configId = 0;
+};
+
+struct BotSettings {
+    // Tüm ayarlar burada (önceki versiyondan aynen)
+    int hpPercent = 50;
+    int mpPercent = 35;
+    bool hpEnabled = true;
+    bool mpEnabled = true;
+    // ... (tüm diğer ayarlar)
+};
+
+class AppState {
+public:
+    static AppState& Get();
+    void Initialize();
+    void Shutdown();
+
+    bool ValidateLicense(const std::string& key);
+    bool IsLicenseValid() const { return m_licenseValid; }
+    std::string GetLicenseType() const { return m_licenseType; }
+
+    std::vector<Account>& GetAccounts() { return m_accounts; }
+    void AddAccount(const Account& acc);
+    void RemoveAccount(int index);
+    void LoadAccounts();
+    void SaveAccounts();
+
+    BotSettings& GetSettings() { return m_settings; }
+    void LoadSettings();
+    void SaveSettings();
+
+    bool IsBotRunning() const { return m_botRunning; }
+    void SetBotRunning(bool running) { m_botRunning = running; }
+
+    void ResetStats();
+
+private:
+    AppState() = default;
+    ~AppState() = default;
+    AppState(const AppState&) = delete;
+    AppState& operator=(const AppState&) = delete;
+
+    bool m_licenseValid = false;
+    std::string m_licenseType = "DEMO (Süresiz)";
+    std::vector<Account> m_accounts;
+    BotSettings m_settings;
+    bool m_botRunning = false;
+    int m_killCount = 0;
+    int m_lootCount = 0;
+    std::mutex m_mutex;
+};
+📄 src/Core/AppState.cpp
+cpp
+#include "AppState.h"
+#include "Logger.h"
+#include <fstream>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
+
+AppState& AppState::Get() {
+    static AppState instance;
+    return instance;
+}
+
+void AppState::Initialize() {
+    LOG_INFO("AppState başlatılıyor...");
+    LoadSettings();
+    LoadAccounts();
+    LOG_INFO("AppState başlatıldı.");
+}
+
+void AppState::Shutdown() {
+    SaveSettings();
+    SaveAccounts();
+    LOG_INFO("AppState kapatıldı.");
+}
+
+bool AppState::ValidateLicense(const std::string& key) {
+    if (key == "STEELBOX-2025" || key == "ALPHA-ZETA" || key == "DEMO-2025") {
+        m_licenseValid = true;
+        m_licenseType = "DEMO (Süresiz)";
+        return true;
+    }
+    m_licenseValid = false;
+    m_licenseType = "Geçersiz Lisans";
+    return false;
+}
+
+void AppState::AddAccount(const Account& acc) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_accounts.push_back(acc);
+    SaveAccounts();
+}
+
+void AppState::RemoveAccount(int index) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (index >= 0 && index < (int)m_accounts.size()) {
+        m_accounts.erase(m_accounts.begin() + index);
+        SaveAccounts();
+    }
+}
+
+void AppState::LoadAccounts() {
+    std::ifstream file("accounts.json");
+    if (!file.is_open()) return;
+    json j;
+    file >> j;
+    if (j.contains("accounts")) {
+        for (auto& item : j["accounts"]) {
+            Account acc;
+            acc.username = item["username"];
+            acc.passwordHash = item["password"];
+            acc.server = item["server"];
+            acc.platform = item["platform"];
+            acc.characterName = item["charName"];
+            acc.isActive = item["isActive"];
+            acc.configId = item["configId"];
+            m_accounts.push_back(acc);
+        }
+        LOG_INFO("%d hesap yüklendi.", (int)m_accounts.size());
+    }
+}
+
+void AppState::SaveAccounts() {
+    json j;
+    json accountsArray = json::array();
+    for (const auto& acc : m_accounts) {
+        json item;
+        item["username"] = acc.username;
+        item["password"] = acc.passwordHash;
+        item["server"] = acc.server;
+        item["platform"] = acc.platform;
+        item["charName"] = acc.characterName;
+        item["isActive"] = acc.isActive;
+        item["configId"] = acc.configId;
+        accountsArray.push_back(item);
+    }
+    j["accounts"] = accountsArray;
+    std::ofstream file("accounts.json");
+    if (file.is_open()) {
+        file << j.dump(4);
+        LOG_INFO("Hesaplar kaydedildi.");
+    }
+}
+
+void AppState::LoadSettings() {
+    std::ifstream file("settings.json");
+    if (!file.is_open()) return;
+    json j;
+    file >> j;
+    if (!j.contains("bot")) return;
+    auto& b = j["bot"];
+
+    #define LOAD_INT(field) if (b.contains(#field)) m_settings.field = b[#field];
+    #define LOAD_BOOL(field) if (b.contains(#field)) m_settings.field = b[#field];
+    #define LOAD_STRING(field) if (b.contains(#field)) m_settings.field = b[#field].get<std::string>();
+    #define LOAD_FLOAT(field) if (b.contains(#field)) m_settings.field = b[#field];
+
+    LOAD_INT(hpPercent); LOAD_INT(mpPercent);
+    LOAD_BOOL(hpEnabled); LOAD_BOOL(mpEnabled);
+    // ... (tüm diğer ayarları yükle)
+    LOG_INFO("Ayarlar yüklendi.");
+}
+
+void AppState::SaveSettings() {
+    json j;
+    json b;
+    #define SAVE(field) b[#field] = m_settings.field;
+    SAVE(hpPercent); SAVE(mpPercent);
+    // ... (tüm diğer ayarları kaydet)
+    j["bot"] = b;
+    std::ofstream file("settings.json");
+    if (file.is_open()) {
+        file << j.dump(4);
+        LOG_INFO("Ayarlar kaydedildi.");
+    }
+}
+
+void AppState::ResetStats() {
+    m_killCount = 0;
+    m_lootCount = 0;
+}
+📄 src/Core/Logger.h
+cpp
+#pragma once
+#include <string>
+#include <fstream>
+#include <mutex>
+
+class Logger {
+public:
+    static Logger& Get();
+
+    void Initialize(const std::string& logFile = "steellbox.log");
+    void Shutdown();
+
+    void Info(const char* format, ...);
+    void Warn(const char* format, ...);
+    void Error(const char* format, ...);
+
+private:
+    Logger() = default;
+    ~Logger() = default;
+    void Write(const std::string& level, const std::string& message);
+
+    std::ofstream m_file;
+    std::mutex m_mutex;
+    bool m_initialized = false;
+};
+
+#define LOG_INFO(...) Logger::Get().Info(__VA_ARGS__)
+#define LOG_WARN(...) Logger::Get().Warn(__VA_ARGS__)
+#define LOG_ERROR(...) Logger::Get().Error(__VA_ARGS__)
+📄 src/Core/Logger.cpp
+cpp
+#include "Logger.h"
+#include <cstdarg>
+#include <ctime>
+
+Logger& Logger::Get() {
+    static Logger instance;
+    return instance;
+}
+
+void Logger::Initialize(const std::string& logFile) {
+    if (m_initialized) return;
+    m_file.open(logFile, std::ios::out | std::ios::app);
+    m_initialized = true;
+    LOG_INFO("Logger başlatıldı.");
+}
+
+void Logger::Shutdown() {
+    LOG_INFO("Logger kapatılıyor...");
+    if (m_file.is_open()) m_file.close();
+    m_initialized = false;
+}
+
+void Logger::Info(const char* format, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    Write("INFO", buffer);
+}
+
+void Logger::Warn(const char* format, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    Write("WARN", buffer);
+}
+
+void Logger::Error(const char* format, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    Write("ERROR", buffer);
+}
+
+void Logger::Write(const std::string& level, const std::string& message) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_initialized) return;
+
+    time_t now = time(nullptr);
+    char timeStr[64];
+    tm local;
+    localtime_s(&local, &now);
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &local);
+
+    std::string line = std::string("[") + timeStr + "] [" + level + "] " + message;
+    if (m_file.is_open()) {
+        m_file << line << std::endl;
+        m_file.flush();
+    }
+    printf("%s\n", line.c_str());
+}
+📄 src/UI/Interfaces/IPanel.h
+cpp
+#pragma once
+#include <string>
+
+class IPanel {
+public:
+    virtual ~IPanel() = default;
+    virtual void Render() = 0;
+    virtual std::string GetName() const = 0;
+    virtual bool IsVisible() const { return m_visible; }
+    virtual void SetVisible(bool visible) { m_visible = visible; }
+
+protected:
+    bool m_visible = true;
+};
+📄 Tüm Panel Dosyaları (Özet)
+Her bir panel (DashboardPanel, GeneralPanel, CombatPanel, AutomationPanel, ChatPanel, PartyPanel, InventoryPanel, SupplyPanel, MobPanel, TimersPanel, LogPanel, SettingsPanel, UpgradePanel, FishingPanel, MiningPanel, WarriorPanel, RoguePanel, MagePanel, PriestPanel) şu yapıda:
+
+Örnek: src/UI/Panels/GeneralPanel.h
+
+cpp
+#pragma once
+#include "UI/Interfaces/IPanel.h"
+
+class GeneralPanel : public IPanel {
+public:
+    void Render() override;
+    std::string GetName() const override { return "Genel"; }
+};
+Örnek: src/UI/Panels/GeneralPanel.cpp
+
+cpp
+#include "GeneralPanel.h"
+#include "Core/AppState.h"
+#include <imgui.h>
+
+void GeneralPanel::Render() {
+    if (!m_visible) return;
+    ImGui::Begin("Genel Ayarlar", &m_visible);
+    auto& s = AppState::Get().GetSettings();
+    ImGui::SliderInt("HP Pot %", &s.hpPercent, 1, 100);
+    ImGui::SliderInt("MP Pot %", &s.mpPercent, 1, 100);
+    if (ImGui::Button("Kaydet")) AppState::Get().SaveSettings();
+    ImGui::End();
+}
+Diğer paneller aynı yapıda, kendi ayarlarını çiziyor.
+
+📄 src/UI/Panels/DashboardPanel.cpp (Gösterge Paneli)
+cpp
+#include "DashboardPanel.h"
+#include "Core/AppState.h"
+#include "Core/Memory.h"
+#include <imgui.h>
+#include <implot.h>
+
+void DashboardPanel::Render() {
+    if (!m_visible) return;
+    ImGui::Begin("Gösterge", &m_visible);
+
+    auto& mem = Memory::Get();
+    auto chr = mem.GetChrPtr();
+
+    if (chr) {
+        int hp = mem.GetHP(chr);
+        int maxHp = mem.GetMaxHP(chr);
+        int mp = mem.GetMP(chr);
+        int maxMp = mem.GetMaxMP(chr);
+        int level = mem.GetLevel(chr);
+        int gold = mem.GetGold(chr);
+        float x = mem.GetPosX(chr);
+        float y = mem.GetPosY(chr);
+        std::string name = mem.GetCharacterName(chr);
+
+        ImGui::Text("Karakter: %s", name.c_str());
+        ImGui::Text("Level: %d", level);
+        ImGui::Text("Gold: %d", gold);
+        ImGui::Text("Konum: (%.1f, %.1f)", x, y);
+
+        float hpPercent = maxHp > 0 ? (float)hp / maxHp : 0.0f;
+        ImGui::ProgressBar(hpPercent, ImVec2(200, 20), std::to_string(hpPercent * 100).c_str());
+        ImGui::SameLine();
+        ImGui::Text("HP: %d/%d", hp, maxHp);
+
+        float mpPercent = maxMp > 0 ? (float)mp / maxMp : 0.0f;
+        ImGui::ProgressBar(mpPercent, ImVec2(200, 20), std::to_string(mpPercent * 100).c_str());
+        ImGui::SameLine();
+        ImGui::Text("MP: %d/%d", mp, maxMp);
+
+        ImGui::Separator();
+        if (ImPlot::BeginPlot("HP/MP Geçmişi")) {
+            static float hpHistory[100] = {};
+            static float mpHistory[100] = {};
+            static int historyOffset = 0;
+            hpHistory[historyOffset % 100] = hpPercent * 100;
+            mpHistory[historyOffset % 100] = mpPercent * 100;
+            historyOffset++;
+            ImPlot::PlotLine("HP", hpHistory, 100);
+            ImPlot::PlotLine("MP", mpHistory, 100);
+            ImPlot::EndPlot();
+        }
+    } else {
+        ImGui::Text("Oyuna bağlanılmadı.");
+    }
+
+    auto& app = AppState::Get();
+    if (ImGui::Button("Bot Başlat")) app.SetBotRunning(true);
+    ImGui::SameLine();
+    if (ImGui::Button("Bot Durdur")) app.SetBotRunning(false);
+
+    ImGui::End();
+}
+📋 PROJE TAM DOSYA LİSTESİ (KONUMLARIYLA)
+text
+C:\Users\Fujitsu\Desktop\stellbox bt\imguisystems\
+├── CMakeLists.txt
+├── external\
+│   ├── imgui\
+│   │   ├── imgui.cpp
+│   │   ├── imgui.h
+│   │   ├── imgui_demo.cpp
+│   │   ├── imgui_draw.cpp
+│   │   ├── imgui_tables.cpp
+│   │   ├── imgui_widgets.cpp
+│   │   ├── backends\
+│   │   │   ├── imgui_impl_dx9.cpp
+│   │   │   ├── imgui_impl_dx9.h
+│   │   │   ├── imgui_impl_win32.cpp
+│   │   │   └── imgui_impl_win32.h
+│   │   └── misc\
+│   │       └── fonts\
+│   │           └── (font dosyaları)
+│   ├── implot\
+│   │   ├── implot.cpp
+│   │   ├── implot.h
+│   │   ├── implot_internal.h
+│   │   └── implot_items.cpp
+│   └── detours\
+│       ├── detours.h
+│       ├── detours.cpp
+│       └── (diğer detours dosyaları)
+├── src\
+│   ├── main.cpp
+│   ├── main.h
+│   ├── Core\
+│   │   ├── AppState.cpp
+│   │   ├── AppState.h
+│   │   ├── Commands.cpp
+│   │   ├── Commands.h
+│   │   ├── Encoding.h
+│   │   ├── Logger.cpp
+│   │   ├── Logger.h
+│   │   ├── Memory.cpp
+│   │   ├── Memory.h
+│   │   ├── Offsets.cpp
+│   │   └── Offsets.h
+│   ├── UI\
+│   │   ├── Interfaces\
+│   │   │   └── IPanel.h
+│   │   ├── Overlay\
+│   │   │   ├── Drawing.cpp
+│   │   │   ├── Drawing.h
+│   │   │   ├── Hook.cpp
+│   │   │   └── Hook.h
+│   │   └── Panels\
+│   │       ├── AutomationPanel.cpp
+│   │       ├── AutomationPanel.h
+│   │       ├── ChatPanel.cpp
+│   │       ├── ChatPanel.h
+│   │       ├── CombatPanel.cpp
+│   │       ├── CombatPanel.h
+│   │       ├── DashboardPanel.cpp
+│   │       ├── DashboardPanel.h
+│   │       ├── FishingPanel.cpp
+│   │       ├── FishingPanel.h
+│   │       ├── GeneralPanel.cpp
+│   │       ├── GeneralPanel.h
+│   │       ├── InventoryPanel.cpp
+│   │       ├── InventoryPanel.h
+│   │       ├── LogPanel.cpp
+│   │       ├── LogPanel.h
+│   │       ├── MiningPanel.cpp
+│   │       ├── MiningPanel.h
+│   │       ├── MobPanel.cpp
+│   │       ├── MobPanel.h
+│   │       ├── PartyPanel.cpp
+│   │       ├── PartyPanel.h
+│   │       ├── SettingsPanel.cpp
+│   │       ├── SettingsPanel.h
+│   │       ├── SupplyPanel.cpp
+│   │       ├── SupplyPanel.h
+│   │       ├── TimersPanel.cpp
+│   │       ├── TimersPanel.h
+│   │       ├── UpgradePanel.cpp
+│   │       ├── UpgradePanel.h
+│   │       ├── ClassPanels\
+│   │       │   ├── MagePanel.cpp
+│   │       │   ├── MagePanel.h
+│   │       │   ├── PriestPanel.cpp
+│   │       │   ├── PriestPanel.h
+│   │       │   ├── RoguePanel.cpp
+│   │       │   ├── RoguePanel.h
+│   │       │   ├── WarriorPanel.cpp
+│   │       │   └── WarriorPanel.h
+│   │       └── (diğer panel dosyaları)
+│   └── (diğer yardımcı dosyalar)
+└── (diğer proje dosyaları)
+Alpha, SteelBox V1.4

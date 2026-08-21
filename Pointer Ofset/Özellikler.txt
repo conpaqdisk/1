@@ -1,0 +1,247 @@
+
+---
+
+# 📋 **STELLBOX v2.0 - PROFESSIONAL ÖZELLİK LİSTESİ**
+
+---
+
+## 🏗️ **1. SİSTEM MİMARİSİ & ALTYAPI**
+
+| # | Özellik | Açıklama | Teknoloji |
+|---|---------|----------|-----------|
+| 1.1 | **Modüler Servis Mimarisi** | Tüm bileşenler bağımsız servisler olarak çalışır | .NET 8.0 |
+| 1.2 | **SignalR Gerçek Zamanlı İletişim** | Web UI ile anlık veri akışı | SignalR |
+| 1.3 | **Kernel Seviyesi Bellek Erişimi** | Driver ile doğrudan bellek okuma/yazma | C Driver |
+| 1.4 | **Web Tabanlı Kontrol Paneli** | Tarayıcı üzerinden tam kontrol | HTML5/CSS3/JS |
+| 1.5 | **RESTful API** | Harici uygulamalar için API desteği | ASP.NET Core |
+| 1.6 | **Çoklu Dil Desteği** | Türkçe, İngilizce, Almanca | Resource Files |
+| 1.7 | **Otonom Güncelleme Sistemi** | Kendi kendini güncelleyen yapı | AutoUpdate Service |
+| 1.8 | **Hata Yönetimi & Loglama** | Detaylı hata kaydı ve izleme | Serilog |
+
+---
+
+## 🛡️ **2. GÜVENLİK & GİZLİLİK**
+
+| # | Özellik | Açıklama | Öncelik |
+|---|---------|----------|---------|
+| 2.1 | **XinCode3 Tam Bypass** | xhunter1.sys, xhc.sys, XignCode3.exe tamamen atlatma | ⭐⭐⭐⭐⭐ |
+| 2.2 | **Process Hiding** | STELLBOX process'ini sistemden gizleme | ⭐⭐⭐⭐⭐ |
+| 2.3 | **Window Hiding** | Tüm pencereleri EnumWindows'tan gizleme | ⭐⭐⭐⭐⭐ |
+| 2.4 | **Module Tampering Protection** | DLL injection tespitine karşı koruma | ⭐⭐⭐⭐⭐ |
+| 2.5 | **API Hook Detection & Cleaning** | IAT/EAT/Inline hook temizleme | ⭐⭐⭐⭐⭐ |
+| 2.6 | **Anti-Debug** | Debugger, breakpoint, hardware BP tespiti | ⭐⭐⭐⭐⭐ |
+| 2.7 | **Call-Stack Integrity** | ROP gadget ve return address kontrolü | ⭐⭐⭐⭐ |
+| 2.8 | **Memory Read Protection** | PAGE_NOACCESS ile kritik bölgeleri koruma | ⭐⭐⭐⭐⭐ |
+| 2.9 | **xhc.sys Communication Blocker** | xhunter1.sys sunucu iletişimini engelleme | ⭐⭐⭐⭐⭐ |
+| 2.10 | **Recent Programs Evasion** | MRU, UserAssist, JumpList temizleme | ⭐⭐⭐⭐ |
+| 2.11 | **Kernel Seviyesi Bellek Şifreleme** | Bot state'ini AES-256 ile şifreleme | ⭐⭐⭐⭐⭐ |
+| 2.12 | **Smart Escape System** | Tehlike anında otomatik kaçış ve saklanma | ⭐⭐⭐⭐⭐ |
+| 2.13 | **RSA-2048 Lisans Sistemi** | Güvenli serial key doğrulama | ⭐⭐⭐⭐⭐ |
+| 2.14 | **Hardware ID Binding** | Lisansın donanıma bağlanması | ⭐⭐⭐⭐ |
+| 2.15 | **Sanal Makine Tespiti** | VM'de çalıştığını anlayıp gizlenme | ⭐⭐⭐⭐ |
+| 2.16 | **Rootkit Koruma** | Rootkit tespitine karşı savunma | ⭐⭐⭐⭐ |
+| 2.17 | **Anti-Forensic** | Dijital iz bırakmama sistemi | ⭐⭐⭐ |
+| 2.18 | **Self-Heal Mekanizması** | Tespit durumunda kendini yenileme | ⭐⭐⭐⭐⭐ |
+| 2.19 | **Child Process Monitoring** | Oyun içinden program başlatılmasını engelleme | ⭐⭐⭐⭐ |
+| 2.20 | **DNS-over-HTTPS Tunnel** | Trafiği DNS üzerinden tunnel'lama | ⭐⭐⭐⭐ |
+
+---
+
+## 🎮 **3. OYUN İÇİ OTOMASYON**
+
+| # | Özellik | Açıklama | Öncelik |
+|---|---------|----------|---------|
+| 3.1 | **Otomatik Savaş (Auto-Combat)** | Yakındaki canavarlara otomatik saldırı | ⭐⭐⭐⭐⭐ |
+| 3.2 | **Otomatik Loot (Auto-Loot)** | Düşen eşyaları otomatik toplama | ⭐⭐⭐⭐⭐ |
+| 3.3 | **Otomatik Hareket (Auto-Move)** | Rota üzerinde otomatik yürüme | ⭐⭐⭐⭐⭐ |
+| 3.4 | **Otomatik Pot Kullanımı** | HP/MP otomatik pot kullanımı | ⭐⭐⭐⭐⭐ |
+| 3.5 | **Otomatik Tedarik (Auto-Supply)** | NPC'den otomatik alışveriş | ⭐⭐⭐⭐⭐ |
+| 3.6 | **Otomatik RPR (Auto-Upgrade)** | Otomatik eşya geliştirme | ⭐⭐⭐⭐⭐ |
+| 3.7 | **Otomatik Tamir (Auto-Repair)** | Eşyaları otomatik tamir etme | ⭐⭐⭐⭐ |
+| 3.8 | **Otomatik Görev (Auto-Quest)** | Görevleri otomatik tamamlama | ⭐⭐⭐⭐ |
+| 3.9 | **Otomatik Boss Avı** | Boss'ları otomatik bulup öldürme | ⭐⭐⭐⭐⭐ |
+| 3.10 | **Otomatik Farm Rotasyonu** | Farklı bölgeler arası geçiş | ⭐⭐⭐⭐ |
+| 3.11 | **Otomatik Event Katılımı** | Sunucu event'lerine katılma | ⭐⭐⭐ |
+| 3.12 | **Akıllı Hedef Seçimi** | En iyi XP/Item oranlı hedef seçimi | ⭐⭐⭐⭐⭐ |
+| 3.13 | **Oyuncu Taklidi (Player Mimic)** | Gerçek oyuncu gibi davranma | ⭐⭐⭐⭐⭐ |
+| 3.14 | **Adaptif Davranış** | Sunucu koşullarına göre davranış değişimi | ⭐⭐⭐⭐⭐ |
+| 3.15 | **Pattern Tanıma** | Ban pattern'lerini tanıma | ⭐⭐⭐⭐ |
+| 3.16 | **Anomali Tespiti** | Anormal aktiviteleri tespit etme | ⭐⭐⭐⭐ |
+| 3.17 | **Otomatik Silah Değiştirme** | Dayanıklılık düşünce yedek silaha geçme | ⭐⭐⭐⭐ |
+| 3.18 | **Otomatik Merchant Modu** | Şehirde satıcılık yapma | ⭐⭐⭐ |
+| 3.19 | **Akıllı Kaçış** | Tehlike anında otomatik kaçış | ⭐⭐⭐⭐⭐ |
+| 3.20 | **PVP Otomasyonu** | PVP durumunda otomatik savaş | ⭐⭐⭐⭐ |
+
+---
+
+## 🗺️ **4. HARİTA & KONUM SİSTEMİ**
+
+| # | Özellik | Açıklama | Öncelik |
+|---|---------|----------|---------|
+| 4.1 | **Canlı Harita (Live Map)** | Gerçek zamanlı konum takibi | ⭐⭐⭐⭐⭐ |
+| 4.2 | **Heatmap** | Bölge aktivite grafiği | ⭐⭐⭐⭐ |
+| 4.3 | **Prediktif Rota** | Yoğunluğa göre otomatik rota değiştirme | ⭐⭐⭐⭐⭐ |
+| 4.4 | **Rota Çizimi** | Kullanıcı tanımlı rota oluşturma | ⭐⭐⭐⭐ |
+| 4.5 | **Koordinat Sistemi** | Hassas konum takibi (X, Y, Z) | ⭐⭐⭐⭐⭐ |
+| 4.6 | **Çoklu Harita Desteği** | Moradon, Luferson, El Morad, vb. | ⭐⭐⭐⭐⭐ |
+| 4.7 | **Boss Spawn Takibi** | Boss spawn zamanı ve konumu | ⭐⭐⭐⭐⭐ |
+| 4.8 | **Güvenli Bölge Algılama** | Safe zone tespiti | ⭐⭐⭐⭐ |
+| 4.9 | **A* Pathfinding** | En kısa ve güvenli rota hesaplama | ⭐⭐⭐⭐ |
+| 4.10 | **Canavar Yoğunluk Haritası** | Yoğun bölgeleri gösterme | ⭐⭐⭐ |
+
+---
+
+## 🌐 **5. MULTI-CLIENT & DAĞITIK SİSTEM**
+
+| # | Özellik | Açıklama | Öncelik |
+|---|---------|----------|---------|
+| 5.1 | **Multi-Client Yönetimi** | Birden fazla bot'u tek ekrandan kontrol | ⭐⭐⭐⭐⭐ |
+| 5.2 | **Bot Ordusu (100+ Client)** | 100+ bot aynı anda yönetim | ⭐⭐⭐⭐⭐ |
+| 5.3 | **Master-Slave Mimarisi** | Merkezi sunucu ve istemci yapısı | ⭐⭐⭐⭐⭐ |
+| 5.4 | **Rol Bazlı Görev Dağılımı** | Tank, Healer, DPS rolleri | ⭐⭐⭐⭐ |
+| 5.5 | **Otomatik Koordinasyon** | Botlar arası senkronize hareket | ⭐⭐⭐⭐ |
+| 5.6 | **Toplu Komut Gönderme** | Tüm botlara tek seferde komut | ⭐⭐⭐⭐⭐ |
+| 5.7 | **Gerçek Zamanlı Senkronizasyon** | Botlar arası anlık veri paylaşımı | ⭐⭐⭐⭐⭐ |
+| 5.8 | **P2P Mesh Network** | Botlar arası doğrudan iletişim ağı | ⭐⭐⭐⭐ |
+| 5.9 | **Yük Dengeleme** | Sunucu yüküne göre bot dağılımı | ⭐⭐⭐ |
+---
+
+## 💰 **6. EKONOMİ & TİCARET**
+
+| # | Özellik | Açıklama | Öncelik |
+|---|---------|----------|---------|
+| 6.1 | **Otomatik Ticaret Botu** | Piyasa analizi + alım/satım | ⭐⭐⭐⭐⭐ |
+| 6.2 | **Piyasa Analizi** | En karlı loot ve item analizi | ⭐⭐⭐⭐⭐ |
+| 6.3 | **Fiyat Trendleri** | Item fiyat grafikleri | ⭐⭐⭐⭐ |
+| 6.4 | **Akıllı Stok Yönetimi** | Envanter optimizasyonu | ⭐⭐⭐⭐ |
+| 6.5 | **Çapraz Sunucu Arbitraj** | Farklı sunucular arası ticaret | ⭐⭐⭐⭐ |
+| 6.6 | **Kar/Zarar Takibi** | Yapılan ticaretlerin analizi | ⭐⭐⭐⭐ |
+| 6.7 | **Otomatik Fiyat Manipülasyonu** | Piyasa fiyatlarını etkileme | ⭐⭐⭐ |
+| 6.8 | **Talep Tahmini** | Gelecek talep tahmini ile stoklama | ⭐⭐⭐ |
+| 6.9 | **Kripto Para Desteği** | BTC/ETH ile ödeme ve ticaret | ⭐⭐⭐ |
+| 6.10 | **Envanter Optimizasyonu** | En iyi item kombinasyonları | ⭐⭐⭐⭐ |
+
+---
+
+## 📊 **7. PERFORMANS & ANALİZ**
+
+| # | Özellik | Açıklama | Öncelik |
+|---|---------|----------|---------|
+| 7.1 | **Performance Dashboard** | XP/Item saatlik gösterge | ⭐⭐⭐⭐⭐ |
+| 7.2 | **Ban Risk Score** | Anlık ban riski göstergesi | ⭐⭐⭐⭐⭐ |
+| 7.3 | **Heatmap** | Bölge aktivite grafiği | ⭐⭐⭐⭐ |
+| 7.4 | **Gerçek Zamanlı Metrikler** | CPU, RAM, Thread kullanımı | ⭐⭐⭐⭐⭐ |
+| 7.5 | **Optimization Engine** | Otomatik performans optimizasyonu | ⭐⭐⭐⭐⭐ |
+| 7.6 | **GPU Acceleration** | ML işlemleri için GPU kullanımı | ⭐⭐⭐ |
+| 7.7 | **Distributed Computing** | Birden fazla bot'u merkezi sistemden yönetme | ⭐⭐⭐⭐ |
+| 7.8 | **AI Raporlama** | Yapay zeka ile performans analizi | ⭐⭐⭐⭐ |
+| 7.9 | **Karşılaştırmalı Analiz** | Diğer botlar ile karşılaştırma | ⭐⭐⭐ |
+| 7.10 | **Anomali Tespiti** | Anormal aktiviteleri tespit | ⭐⭐⭐⭐ |
+
+---
+
+## 🤖 **8. YAPAY ZEKA & MAKİNE ÖĞRENMESİ**
+
+| # | Özellik | Açıklama | Öncelik |
+|---|---------|----------|---------|
+| 8.1 | **ML Tabanlı Mob Seçimi** | En iyi XP/Item oranına göre otomatik mob seçimi | ⭐⭐⭐⭐⭐ |
+| 8.2 | **Reinforcement Learning** | Bot'un zamanla daha iyi kararlar alması | ⭐⭐⭐⭐⭐ |
+| 8.3 | **GPT Entegrasyonu** | OpenAI API ile akıllı kararlar | ⭐⭐⭐⭐⭐ |
+| 8.4 | **Davranış Klonlama** | Gerçek oyuncu hareketlerini öğrenip taklit etme | ⭐⭐⭐⭐ |
+| 8.5 | **Pattern Recognition** | Ban pattern'lerini tanıma | ⭐⭐⭐⭐ |
+| 8.6 | **Anomaly Detection** | Anormal aktiviteleri tespit etme | ⭐⭐⭐⭐ |
+| 8.7 | **Adaptive Behavior** | Sunucu koşullarına göre davranış değişimi | ⭐⭐⭐⭐⭐ |
+| 8.8 | **NLP ile Chat** | GM/Player mesajlarına otomatik yanıt | ⭐⭐⭐⭐ |
+| 8.9 | **Otonom Karar Mekanizması** | Bot kendi kendine karar veren sistem | ⭐⭐⭐⭐⭐ |
+| 8.10 | **Prediktif Analiz** | Gelecek trendleri tahmin etme | ⭐⭐⭐ |
+
+---
+
+## 🔌 **9. ENTEGRASYON & BİLDİRİM**
+
+| # | Özellik | Açıklama | Öncelik |
+|---|---------|----------|---------|
+| 9.1 | **Discord Integration** | Status, loot, event bildirimleri | ⭐⭐⭐⭐⭐ |
+| 9.2 | **Telegram Integration** | Özel mesaj ve grup bildirimleri | ⭐⭐⭐⭐⭐ |
+| 9.3 | **WhatsApp Commands** | WhatsApp üzerinden bot komutları | ⭐⭐⭐ |
+| 9.4 | **Sesli Komut (Voice Control)** | Sesli komut ile bot yönetimi | ⭐⭐⭐ |
+| 9.5 | **Push Bildirimler** | Anlık mobil bildirimler | ⭐⭐⭐⭐ |
+| 9.6 | **WebSocket Tünel** | WebSocket ile güvenli veri iletimi | ⭐⭐⭐⭐ |
+| 9.7 | **Zero-Knowledge Proof** | Kimlik doğrulama için sıfır bilgi kanıtı | ⭐⭐⭐ |
+| 9.8 | **IPFS Depolama** | IPFS üzerinde yedekleme | ⭐⭐⭐ |
+| 9.9 | **Blockchain Log** | Tüm işlemleri blockchain'e kaydetme | ⭐⭐ |
+| 9.10 | **Remote Desktop Integration** | Uzaktan masaüstü üzerinden kontrol | ⭐⭐⭐ |
+
+---
+
+## 📱 **10. MOBİL & UZAKTAN ERİŞİM**
+
+| # | Özellik | Açıklama | Öncelik |
+|---|---------|----------|---------|
+| 10.1 | **Flutter Mobile App** | iOS/Android için native uygulama | ⭐⭐⭐⭐⭐ |
+| 10.2 | **QR Kod ile Giriş** | QR kod ile hızlı oturum açma | ⭐⭐ |
+| 10.3 | **Biometric Auth** | Parmak izi / Face ID ile bot girişi | ⭐⭐ |
+| 10.4 | **Wearable Entegrasyon** | Akıllı saat ile bot kontrolü | ⭐⭐ |
+| 10.5 | **Cloud Backup** | Bulut yedekleme | ⭐⭐⭐ |
+
+---
+
+## 🛠️ **11. GELİŞTİRİCİ & TOPLULUK**
+
+| # | Özellik | Açıklama | Öncelik |
+|---|---------|----------|---------|
+| 11.1 | **Plugin Market** | Kullanıcıların eklenti satabileceği market | ⭐⭐⭐⭐ |
+| 11.2 | **Script Editor** | Dahili kod editörü | ⭐⭐⭐⭐ |
+| 11.3 | **Community Mods** | Topluluk modları desteği | ⭐⭐⭐ |
+| 11.4 | **API Dokümantasyon** | Geliştiriciler için açık API | ⭐⭐⭐⭐ |
+| 11.5 | **Open Source Core** | Çekirdek kodun açık kaynak olması | ⭐⭐⭐ |
+
+---
+
+## 📋 **12. KULLANICI ARAYÜZÜ (UI)**
+
+| # | Özellik | Açıklama |
+|---|---------|----------|
+| 12.1 | **17 Web Tab** | Tüm özellikler için ayrı tab'lar |
+| 12.2 | **Canlı Dashboard** | Anlık veri gösterimi |
+| 12.3 | **Harita Görüntüleyici** | Gerçek zamanlı harita |
+| 12.4 | **Karanlık Tema** | Cyberpunk tasarım |
+| 12.5 | **Responsive Tasarım** | Tüm ekran boyutlarına uyum |
+| 12.6 | **Canlı Log** | Anlık olay takibi |
+| 12.7 | **Durum Göstergeleri** | Servis ve bot durumu |
+| 12.8 | **Klavye Kısayolları** | Hızlı erişim |
+
+---
+
+## 🔧 **13. SİSTEM ARAÇLARI**
+
+| # | Özellik | Açıklama |
+|---|---------|----------|
+| 13.1 | **Pointer Finder** | Otomatik pointer bulma |
+| 13.2 | **Packet Analyzer** | Ağ paketi analizörü |
+| 13.3 | **Dump Helper** | Bellek dump aracı |
+| 13.4 | **License Generator** | Lisans üretici |
+| 13.5 | **Config Editor** | Ayarlar düzenleyici |
+
+---
+
+## 📈 **ÖZET - TOPLAM ÖZELLİK SAYISI**
+
+| Kategori | Özellik Sayısı |
+|----------|----------------|
+| Sistem Mimarisi | 8 |
+| Güvenlik & Gizlilik | 20 |
+| Oyun İçi Otomasyon | 20 |
+| Harita & Konum | 10 |
+| Multi-Client | 10 |
+| Ekonomi & Ticaret | 10 |
+| Performans & Analiz | 10 |
+| Yapay Zeka & ML | 10 |
+| Entegrasyon & Bildirim | 10 |
+| Mobil & Uzaktan Erişim | 5 |
+| Geliştirici & Topluluk | 5 |
+| Kullanıcı Arayüzü | 8 |
+| Sistem Araçları | 5 |
+| **TOPLAM** | **131** |
+
+---

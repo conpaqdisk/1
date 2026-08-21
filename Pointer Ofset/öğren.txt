@@ -1,0 +1,359 @@
+able pointeri ile bağlanıp adresleri şuanda görebiliyorum bu şekilde deneyebilirsin
+KO_PTR_VTABLE 0x0100C3DC
+
+KO_FNC_RECV 0x00846620 adres doğru jmp at hepsini okursun burdan .
+
+bunun için bypass gerekir.
+
+Bu yüzden Wireshark kullanman daha mantıklı olur. Ağ üzerindeki paketleri doğrudan izleyebilirsin, yani oyunun .exe dosyasına hook atıp Recv() fonksiyonunu yakalamakla uğraşmana gerek kalmaz. Özellikle WIZ paketlerini analiz etmek istiyorsan önce network trafiğini inceleyip opcode yapısını çıkarman çok daha kolay olur.
+
+Paket göndermek için de illa SendPacket veya Send fonksiyonuna bağlanmak şart değil. Trafiği analiz edip protokolü anladıktan sonra, çoğu durumda doğrudan paket oluşturup gönderebilirsin. Önce network tarafını öğrenmen işini ciddi şekilde kolaylaştıracaktır.
+
+KO'nun kullandığı "Send/Recv" portlarını network seviyesinde dinliyorum. Bu sayede giden ve gelen paketleri yakalayabiliyorum.
+
+Paketleri dinlerken sadece veriyi değil, aynı zamanda:
+Byte verilerini,
+Kaynak/hedef IP adreslerini,
+Hex çıktısını,
+ASCII karşılığını,
+Opcode bilgilerini
+görebiliyorum.
+
+Eğer paket AES ile şifrelenmişse, ilgili AES yapısına göre çözümleyip okunabilir hale getiriyorum. Yani temel mantık oyuna inject olmak değil, network üzerinden geçen trafiği analiz edip paketleri anlamlandırmak.
+
+C++:
+// Gerekli global değişkenler
+static uint32_t g_origVFuncs[10] = {0};
+static bool g_recvHooked = false;
+
+void Sniffer::InstallRecvHook() {
+    if (g_recvHooked) return;
+
+    // Paket işleme sınıfının VTable adresi (Sürümüne göre değişebilir)
+    uint32_t vtable = 0x0100206C;
+    // Orijinal RECV fonksiyonunun bellekteki konumu
+    uint32_t targetFunc = 0x00843F50;
+   
+    DWORD oldProt;
+    // Bellek bölgesini yazılabilir yapıyoruz
+    if (VirtualProtect((LPVOID)vtable, 100, PAGE_EXECUTE_READWRITE, &oldProt)) {
+        // Tablo içinde fonksiyonumuzu arıyoruz
+        for (int i = 0; i < 20; i++) {
+            uint32_t funcAddr = *(uint32_t*)(vtable + (i * 4));
+            if (funcAddr == targetFunc) {
+                g_origVFuncs[2] = funcAddr; // Orijinal fonksiyonu yedekle (JMP için +8)
+                // Kancayı atıyoruz! Artık paketler önce bize gelecek
+                *(uint32_t*)(vtable + (i * 4)) = (uint32_t)HookRecvStatic;
+                g_recvHooked = true;
+                break;
+            }
+        }
+        // Belleği tekrar eski korumasına alıyoruz
+        VirtualProtect((LPVOID)vtable, 100, oldProt, &oldProt);
+    }
+}
+
+Naked Assembly Trambolini ile Araya Girme
+VTable'ı ezdik, peki paket geldiğinde oyunu çökertmeden nasıl okuyacağız? Bunun için __declspec(naked) kullanarak hiçbir C++ derleyici kodu eklenmemiş saf bir Assembly bloğu oluşturuyoruz. Register'ları (yazmaçları) kaydedip kendi C++ analiz fonksiyonumuzu çağırıyoruz.
+
+C++:
+// Oyun bu adrese atladığında hiçbir register bozulmamalı!
+__declspec(naked) void HookRecvStatic() {
+    __asm {
+        push ebp
+        mov ebp, esp
+        pushfd            // Tüm bayrakları (EFLAGS) yedekle
+        pushad            // Tüm yazmaçları (EAX, EBX, ECX vs.) yedekle
+       
+        // C++ fonksiyonumuza (SafeProcessPacket) gönderilecek parametreleri yığına (stack) at
+        push dword ptr [ebp+12] // esp8 (Argüman 2)
+        push dword ptr [ebp+8]  // esp4 (Argüman 1)
+        push edx                // Fastcall EDX
+        push ecx                // Fastcall ECX / This
+       
+        // Paket analiz fonksiyonunu çağır
+        call SafeProcessPacket
+        add esp, 16             // Yığını (stack) temizle
+       
+        popad             // Yazmaçları eski haline getir
+        popfd             // Bayrakları eski haline getir
+        mov esp, ebp
+        pop ebp
+       
+        // Sanki hiçbir şey olmamış gibi orijinal KO Recv fonksiyonuna zıpla (JMP)
+        jmp dword ptr [g_origVFuncs + 8]
+    }
+}
+
+
+Paket İçeriğini Ayıklama (SafeProcessPacket)
+Knight Online sürümlerinde paket sınıfı (packet class) sürekli yapı değiştirdiği için paketin uzunluğu (len) ve veri işareti (*pData) farklı yazmaçlarda (ECX, EDX) veya Yığın (Stack) üzerinde gezebilir. Bu nedenle her yeri arayan dinamik bir arayıcı (Scanner) yazdık:
+
+
+C++:
+bool TryProcessPacket(void* ptr) {
+    if (!ptr) return false;
+    __try {
+        // Yeni Nesil KO için Offset yapılandırması
+        uint32_t len1 = *(uint32_t*)((uint32_t)ptr + 0);
+        uint8_t* pData1 = *(uint8_t**)((uint32_t)ptr + 4);
+       
+        // Mantıklı bir paket mi diye güvenlik kontrolleri (0 < len < 2000 ve adres geçerli mi)
+        if (len1 > 0 && len1 < 2000 && pData1 && (uint32_t)pData1 > 0x10000) {
+            uint8_t opcode = pData1[0];
+            if (opcode != 0) {
+                // PAKETİ BAŞARIYLA YAKALADIK!
+                // SafeLogRecv(pData1, len1); diyerek işliyoruz
+                return true;
+            }
+        }
+    } __except(1) { } // Bellek okuma hatası olursa çökmeyi engelle
+    return false;
+}
+
+void SafeProcessPacket(void* ecx_val, void* edx_val, void* esp4_val, void* esp8_val) {
+    // Hangisinde paket olduğunu bilmiyoruz, teker teker deniyoruz
+    if (TryProcessPacket(esp4_val)) return;
+    if (TryProcessPacket(esp8_val)) return;
+    if (TryProcessPacket(edx_val)) return;
+    if (TryProcessPacket(ecx_val)) return;
+   
+    // Eğer hiçbirinde yoksa, This pointer'ı (ECX) içindeki tüm pointerlarda ara!
+    if (!ecx_val) return;
+    __try {
+        for (int i = 0; i < 20; i++) {
+            uint32_t val = *(uint32_t*)((uint32_t)ecx_val + (i * 4));
+            if (TryProcessPacket((void*)val)) return; // Bulunursa dur
+        }
+    } __except(1) {}
+}
+
+
+Alt sürüm opcode’larını AES sistemine bağlamak gerekecek. AES - NC, Recv/Send mantığıyla gerçek opcode’ları üretecektir.
+
+Örnek olarak:
+
+PKT_LOGIN_CRYPTION = 0xF2,
+PKT_GAME_VERSION_CHECK = 0x2B,
+
+Paketleri dinleyerek account bilgisini yakalayabilir ve login girişinde bunu tespit edebilirsin. Bunun için ayrı bir bölüm oluşturman daha sağlıklı olur; böylece paketler birbirine karışmaz.
+Kendi programımda eklediğim account bilgisini ve karakter nickini görebiliyorsun. PCAP ya da network tarafında WS2_32 yöntemi kullanılabilir. Hangi yöntem tercih edilecekse, C++ ile ona göre yazılması gerekir.
+
+Detaylı incelendiğinde sistemin (LZF + AES + NC) yapısıyla çalıştığı görülüyor. Yeni gelen NC şifreleme sistemi, opcode üretim mantığını farklı bir yapıya taşımış gibi duruyor.
+Bu yapıyla birlikte WIZ_MOVE, WIZ_NPC_MOVE ve WIZ_USER_MOVE opcode’ları da çıkmış görünüyor.
+
+ID seçili target'a hareket ederek atak verdirtmeye çalışıyorum. Target mob'un kordinat verilerini mi çekmek gerekiyor. Yoksa ID'ye otomaik götürtmek için bir yöntem var mıdır ? MOD ID 0x660 ile aldırtabiliyorum ancak HP, eState ve Kordinat verilerini Hedef state'lerini düzgün almalısın. Sonra hedef x,y,z koordinatlarına gitmelisin. Class'a göre değişir tabii. Mesafe kontrolleri de olmalı.
+
+KO_OFF_TARGET 0x660 ve m_eState 0x134 doğru mudur ?
+
+bir çok yöntemi var oyun threadden legit move fonksiyonunu da çağırabilirsin mob x y z ile memory write ile de yapabilirsin paket ile de. mobun kordinatlarını öğrenmelisin önce
+
+KO_FLDB 0x0110584C ve karakter offsetleri bu işlem için yeterli midir ?
+
+recv hook için hangi adrese hook atmam lazım @dazuke
+
+Bu arada oto login için login ekranında id ve pass yazdıktan sonra ok butonuna bastığın an snd fonksiyonu tetikleniyor. snd fonksiyonunu hooklayınca id ve pass doğruysa 52 byte bir paket atıyor içerisinde id little endian içeriirken pass kısmı hash veya şifrelenmiş halde oluyor. bu paketler haricide 1 er byte 4 adet paket ve 3 byte bir paket gönderiyor.
+F2
+F2
+F3 ... (id ve pass içeren paket) (çağırılan adreste 0x7b7250)
+F5 00 00
+FD
+F6
+ben tüm süreci internal olarak yönetiyorum. oyun motoruna yaptırıyorum login işlemini bir paket göndermiyorum memory read + ai ile yaptırdım.
+
+Threadlarında queryworker kullan bende de yapmıştı zamanında tüm threadları bu şekilde başlattım dll de sorun olmadı daha sonrası tek bir noktadan yönetirsin düzen olur thread Pool kullandığı için queryworker mevcut threadları tekrar tekrar kullanır sürekli thread açmaz.
+
+DLL inject hangi yöntem?
+Manual mapping.
+PEB unlink kullanıyor musun?
+Evet, kullanıyorum.
+XignCode fonksiyonlarını patchleme konusunda bilgim yetersiz şu aşama da beni yönlendirebileceğiniz bir kaynak var ise araştırma yapmak isterim.
+Şu anda stealth yöntemiyle devam ediyorum. Guisiz bir şekilde 51 dk dır çalışıyor karakter bilgilerini vs falan bi problem yaşamadım.
+
+github imgui, https://github.com/adamhlt/ImGui-Standalone.git
+
+Mob kısmında hala sorunlar yaşıyorum. Diğer priv botlar veya public olan botlara nazaran mob seçimi çok yavaş kalıyor ve kutular başkasının oluyor. Farm için kullanılacak bir bot çıkaramadım. Bu mob seçimi ile alakalı yardımcı olabilirmisiniz? Yada gitmem gereken yolu tarif edebilirmisiniz?
+
+Yardımlarınız için şimdiden teşekkür ederim.
+
+Mobun ismi bellekte mob taban adresinin + 0x6A4 ofsetinde tutuluyor. Kod bu adresten karakterleri tek tek okuyarak string'e çeviriyor:
+C++:
+// Plain C-style helper to safely read mob name
+static char g_mobNameResult[64];
+
+static void TryReadInlineName(uint32_t base) {
+    g_mobNameResult[0] = '\0';
+    __try {
+        const char* src = (const char*)(base + 0x6A4);
+        int i = 0;
+        for (; i < 32; i++) {
+            unsigned char ch = (unsigned char)src[i];
+            if (ch == 0) break;
+            if (ch < 0x20 || ch > 0x7E) { i = 0; break; }
+            g_mobNameResult[i] = (char)ch;
+        }
+        g_mobNameResult[i] = '\0';
+    } __except(1) { g_mobNameResult[0] = '\0'; }
+}
+
+static std::string ReadMobNameSafe(uint32_t base) {
+    TryReadInlineName(base);
+    if (g_mobNameResult[0] != '\0') return std::string(g_mobNameResult);
+    return "?";
+}
+
+ActiveMobIDs listesinde dolaşarak her bir mob ID'si için bellekteki adresi (GetMobBase) buluyor ve koordinatlarıyla beraber ismini objeye (MobInfo) kaydediyor.
+
+C++:
+        uint32_t base = GetMobBase(id); // ID'ye göre mobun bellek adresini ağaçtan bulur
+        if (base) {
+            MobInfo mob;
+            mob.ID = id; // Mobun ID'si
+            mob.X = Memory::Read<float>(base + Offsets::POSX);
+            mob.Y = Memory::Read<float>(base + Offsets::POS_Z);
+            mob.Z = Memory::Read<float>(base + Offsets::POS_HEIGHT);
+            mob.Nation = Memory::Read<uint8_t>(base + Offsets::NATN);
+
+            // Üstteki okuma fonksiyonunu çağırarak mob ismini değişkene atar
+            mob.Name = ReadMobNameSafe(base);
+            
+            newMobs[id] = mob;
+        }
+
+Okunan bu veriler, bot hedefe saldıracağı zaman listede dönerken verdiğimiz ID sınırlarına (minId, maxId) ve aradığımız isme (filterName) göre filtrelenir.
+
+C++:
+MobInfo MobScanner::GetClosestMob(float charX, float charY, uint32_t excludeId, uint32_t minId, uint32_t maxId, float centerX, float centerZ, float maxCenterRange, const std::string& filterName) {
+    auto mobs = GetMobList();
+    MobInfo closest = {0};
+    float minDistance = 99999.0f;
+    
+    // Aranan ismi küçük harfe çevirir (büyük-küçük harf duyarlılığını kaldırmak için)
+    std::string lowerFilter = filterName;
+    std::transform(lowerFilter.begin(), lowerFilter.end(), lowerFilter.begin(), ::tolower);
+    
+    for (const auto& mob : mobs) {
+        if (mob.ID == excludeId) continue;
+        if (minId > 0 && mob.ID < minId) continue; // Minimum ID kontrolü
+        if (maxId > 0 && mob.ID > maxId) continue; // Maksimum ID kontrolü
+        
+        // Eğer aranan isim varsa:
+        if (!filterName.empty()) {
+            std::string lowerName = mob.Name;
+            std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
+            
+            // Eğer aranan filtre kelimesi mob isminde geçmiyorsa bu mobu es geç (continue)
+            if (lowerName.find(lowerFilter) == std::string::npos) continue;
+        } else {
+            // Eğer filtre yoksa standart kontrol (NPC, Kapı veya Anıtları seçmeme mantığı vs.)
+            if (mob.Nation == 0) continue;
+            // ... (diğer NPC korumaları)
+        }
+
+        // Koordinat kontrolü (eğer merkez mesafe filtresi de aktifse)
+        if (maxCenterRange > 0.0f) {
+            float distToCenter = std::sqrt((mob.X - centerX) * (mob.X - centerX) + (mob.Y - centerZ) * (mob.Y - centerZ));
+            if (distToCenter > maxCenterRange) continue;
+        }
+
+        float dist = mob.DistanceTo(charX, charY);
+        if (dist < minDistance && dist <= 70.0f) { // En fazla 70 range içerisindeyse hedefe kitlenir
+            minDistance = dist;
+            closest = mob;
+        }
+    }
+    return closest;
+}
+
+0x06 paketinden geriye doğru giderek yürüme fonksiyonunun kendisine ulaşabilirsin sınıf olarak "static const DWORD KO_OFF_e_StateMove = 0x140;" geçiyor , bu offseti çağıran fonksiyonlarıda görebilirsin . hafızada 1-2-3 olarak şekilleniyor durma yürüme emekleme şeklinde
+
+public void MoveCoordinate(int GoX, int GoY)
+{
+if (GoX <= 0 || GoY <= 0) return;
+if (GoX == GetX() && GoY == GetY()) return;
+Write4Byte(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_MOVEType"), 2);
+WriteFloat(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_GoX"), GoX);
+WriteFloat(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_GoY"), GoY);
+Write4Byte(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_MOVE"), 1);
+}
+
+Zıplayarak moba koşma özelliğini eski botlardan alıp entegre ettim fakat game server tarafı çok hassas olduğu için warp ediyor karakteri ve dc yiyorum. Bu koşu kısmını oyun moturunu halletmesini memoryden nasıl yapabilirim yada sizler nasıl yapmaktasınız ?
+unu dener misin bi
+
+
+public void MoveCoordinate(int GoX, int GoY)
+{
+if (GoX <= 0 || GoY <= 0) return;
+if (GoX == GetX() && GoY == GetY()) return;
+Write4Byte(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_MOVEType"), 2);
+WriteFloat(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_GoX"), GoX);
+WriteFloat(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_GoY"), GoY);
+Write4Byte(Read4Byte(GetAddress("KO_PTR_CHR")) + GetAddress("KO_OFF_MOVE"), 1);
+}
+
+
+#define KO_OFF_GOX 0x1020
+#define KO_OFF_GOY 0x1028
+#define KO_OFF_MOVE 0x1014
+#define KO_OFF_MOVETYPE 0x0140
+
+Envanteri okumak için :
+
+dlg = *(0x010FA8F4) ; KO_PTR_DLG
+invUI = *(dlg + 0x1D8) ; KO_OFF_UIInventory
+itemArray = invUI + 0x298 ; KO_OFF_UIInventory_FirstItem
+pObj = *(itemArray + i*4) ; 0 ise slot boş
+basic = *(pObj + 0x60)
+itemId = *(basic + 0x00)
+isim = basic + 0x08 ; KO string
+ext = *(pObj + 0x64) ; varsa: *(ext+0x00) = +seviye id, itemId'ye EKLE
+adet = *(pObj + 0x68) (WORD)
+dura = *(pObj + 0x6C) (WORD) ; silah/zırhta dayanıklılık = adet yerine
+
+
+
+
+Envanteri yenilemek :
+
+6A 02 ; (KO_FNC_SND = 0x006FD700)
+
+öğren
+
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.1.32414.318
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImGui Standalone", "ImGui Standalone\ImGui Standalone.vcxproj", "{AF5FE85D-6A4A-47A3-B27C-0DA60EA93D51}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AF5FE85D-6A4A-47A3-B27C-0DA60EA93D51}.Debug|x64.ActiveCfg = Debug|x64
+		{AF5FE85D-6A4A-47A3-B27C-0DA60EA93D51}.Debug|x64.Build.0 = Debug|x64
+		{AF5FE85D-6A4A-47A3-B27C-0DA60EA93D51}.Debug|x86.ActiveCfg = Debug|Win32
+		{AF5FE85D-6A4A-47A3-B27C-0DA60EA93D51}.Debug|x86.Build.0 = Debug|Win32
+		{AF5FE85D-6A4A-47A3-B27C-0DA60EA93D51}.Release|x64.ActiveCfg = Release|x64
+		{AF5FE85D-6A4A-47A3-B27C-0DA60EA93D51}.Release|x64.Build.0 = Release|x64
+		{AF5FE85D-6A4A-47A3-B27C-0DA60EA93D51}.Release|x86.ActiveCfg = Release|Win32
+		{AF5FE85D-6A4A-47A3-B27C-0DA60EA93D51}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B7173DA9-3651-41A7-8E7C-09561EA0A44F}
+	EndGlobalSection
+EndGlobal
+
+
+
+
+
+
+

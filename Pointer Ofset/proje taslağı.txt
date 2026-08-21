@@ -1,0 +1,123 @@
+C:\Users\Fujitsu\Desktop\stellbox bt\imguisystems\
+├── CMakeLists.txt
+├── .gitignore
+├── README.md
+├── LICENSE
+├── steellbox.ini (çalışma anında oluşur)
+├── settings.json (çalışma anında oluşur)
+├── accounts.json (çalışma anında oluşur)
+├── steellbox.log (çalışma anında oluşur)
+├── build.bat
+├── clean.bat
+├── inject.bat
+├── CMakeSettings.json
+├── Makefile
+├── external\
+│   ├── imgui\
+│   │   ├── imgui.cpp
+│   │   ├── imgui.h
+│   │   ├── imgui_demo.cpp
+│   │   ├── imgui_draw.cpp
+│   │   ├── imgui_tables.cpp
+│   │   ├── imgui_widgets.cpp
+│   │   ├── imgui_internal.h
+│   │   ├── imstb_rectpack.h
+│   │   ├── imstb_textedit.h
+│   │   ├── imstb_truetype.h
+│   │   ├── backends\
+│   │   │   ├── imgui_impl_dx9.cpp
+│   │   │   ├── imgui_impl_dx9.h
+│   │   │   ├── imgui_impl_dx11.cpp
+│   │   │   ├── imgui_impl_dx11.h
+│   │   │   ├── imgui_impl_win32.cpp
+│   │   │   └── imgui_impl_win32.h
+│   │   └── misc\
+│   │       └── fonts\
+│   │           ├── README.txt
+│   │           ├── Cousine-Regular.ttf
+│   │           ├── DroidSans.ttf
+│   │           ├── ProggyClean.ttf
+│   │           ├── Roboto-Medium.ttf
+│   │           └── kenney-icon-font.ttf
+│   ├── implot\
+│   │   ├── implot.cpp
+│   │   ├── implot.h
+│   │   ├── implot_internal.h
+│   │   └── implot_items.cpp
+│   └── detours\
+│       ├── detours.h
+│       ├── detours.cpp
+│       ├── detours_x86.lib
+│       ├── detours_x64.lib
+│       └── README.md
+├── src\
+│   ├── main.cpp
+│   ├── main.h
+│   ├── dllmain.cpp
+│   ├── resource.rc
+│   ├── version.rc
+│   ├── steellbox.rc
+│   ├── steellbox.ico
+│   ├── Core\
+│   │   ├── AppState.cpp
+│   │   ├── AppState.h
+│   │   ├── Commands.cpp
+│   │   ├── Commands.h
+│   │   ├── Encoding.h
+│   │   ├── Logger.cpp
+│   │   ├── Logger.h
+│   │   ├── Memory.cpp
+│   │   ├── Memory.h
+│   │   ├── Offsets.cpp
+│   │   └── Offsets.h
+│   └── UI\
+│       ├── Interfaces\
+│       │   └── IPanel.h
+│       ├── Overlay\
+│       │   ├── Drawing.cpp
+│       │   ├── Drawing.h
+│       │   ├── Hook.cpp
+│       │   └── Hook.h
+│       └── Panels\
+│           ├── AutomationPanel.cpp
+│           ├── AutomationPanel.h
+│           ├── ChatPanel.cpp
+│           ├── ChatPanel.h
+│           ├── CombatPanel.cpp
+│           ├── CombatPanel.h
+│           ├── DashboardPanel.cpp
+│           ├── DashboardPanel.h
+│           ├── DemoPanel.cpp
+│           ├── DemoPanel.h
+│           ├── FishingPanel.cpp
+│           ├── FishingPanel.h
+│           ├── GeneralPanel.cpp
+│           ├── GeneralPanel.h
+│           ├── InventoryPanel.cpp
+│           ├── InventoryPanel.h
+│           ├── LogPanel.cpp
+│           ├── LogPanel.h
+│           ├── MiningPanel.cpp
+│           ├── MiningPanel.h
+│           ├── MobPanel.cpp
+│           ├── MobPanel.h
+│           ├── PartyPanel.cpp
+│           ├── PartyPanel.h
+│           ├── SettingsPanel.cpp
+│           ├── SettingsPanel.h
+│           ├── SupplyPanel.cpp
+│           ├── SupplyPanel.h
+│           ├── TimersPanel.cpp
+│           ├── TimersPanel.h
+│           ├── UpgradePanel.cpp
+│           ├── UpgradePanel.h
+│           └── ClassPanels\
+│               ├── MagePanel.cpp
+│               ├── MagePanel.h
+│               ├── PriestPanel.cpp
+│               ├── PriestPanel.h
+│               ├── RoguePanel.cpp
+│               ├── RoguePanel.h
+│               ├── WarriorPanel.cpp
+│               └── WarriorPanel.h
+└── (diğer proje dosyaları)
